@@ -66,19 +66,15 @@
       </td>
       <td>{{ token.created_at }}</td>
       <td>
-        {% if not token.used_at %}
-        <button 
+        <button
           class="btn btn-sm btn-danger"
           hx-post="/tokens/{{ token.id }}/revoke"
           hx-target="#tokens-list"
           hx-swap="innerHTML"
-          hx-confirm="Revoke this token? It will no longer be usable."
+          hx-confirm="{% if token.used_at %}Revoke this token and delete the associated computer?{% else %}Revoke this token? It will no longer be usable.{% endif %}"
         >
           Revoke
         </button>
-        {% else %}
-        <span class="text-muted">In use</span>
-        {% endif %}
       </td>
     </tr>
     {% endfor %}

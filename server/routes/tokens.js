@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Token = require('../models/Token');
+const Computer = require('../models/Computer');
 const AuditLog = require('../models/AuditLog');
 
 // GET /tokens - Show token management page
@@ -61,8 +62,11 @@ router.delete('/:id', (req, res) => {
     });
   }
   
+  if (token.used_by_computer_id) {
+    Computer.delete(token.used_by_computer_id);
+  }
   Token.revoke(req.params.id);
-  
+
   // Log the action
   AuditLog.log(
     req.session.user.id,
@@ -72,23 +76,23 @@ router.delete('/:id', (req, res) => {
     null,
     `Token: ${token.token.substring(0, 8)}...`
   );
-  
+
   // For HTMX request, return updated tokens list
   if (req.headers['hx-request']) {
     const tokens = Token.findAll();
-    return res.render('partials/tokens-list.html', { 
+    return res.render('partials/tokens-list.html', {
       tokens,
       newToken: null
     });
   }
-  
+
   res.redirect('/tokens');
 });
 
 // POST /tokens/:id/revoke - Alternative revoke endpoint for forms
 router.post('/:id/revoke', (req, res) => {
   const token = Token.findById(req.params.id);
-  
+
   if (!token) {
     if (req.headers['hx-request']) {
       return res.status(404).send('Token not found');
@@ -98,7 +102,10 @@ router.post('/:id/revoke', (req, res) => {
       status: 404
     });
   }
-  
+
+  if (token.used_by_computer_id) {
+    Computer.delete(token.used_by_computer_id);
+  }
   Token.revoke(req.params.id);
   
   // Log the action
