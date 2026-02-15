@@ -8,10 +8,8 @@
   <thead>
     <tr>
       <th>Username</th>
-      <th>UID</th>
-      <th>Status</th>
-      <th>Home Directory</th>
       <th>Actions</th>
+      <th>Status</th>
     </tr>
   </thead>
   <tbody>
@@ -23,7 +21,45 @@
           <span class="badge badge-success">Active</span>
         {% endif %}
       </td>
-      <td>{{ user.uid }}</td>
+      <td>
+        {% if computer.status == 'online' %}
+          <div class="btn-group">
+            {% if user.is_locked %}
+              <button
+                class="btn btn-sm btn-success"
+                hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/enable"
+                hx-target="#users-list"
+                hx-swap="innerHTML"
+              >
+                Enable
+              </button>
+            {% else %}
+              <button
+                class="btn btn-sm btn-warning"
+                hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/disable"
+                hx-target="#users-list"
+                hx-swap="innerHTML"
+              >
+                Disable
+              </button>
+            {% endif %}
+
+            {% if user.is_logged_in or computer.current_user == user.username %}
+              <button
+                class="btn btn-sm btn-danger"
+                hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/logout"
+                hx-target="#users-list"
+                hx-swap="innerHTML"
+                hx-confirm="Force logout user {{ user.username }}? Any unsaved work will be lost."
+              >
+                Logout
+              </button>
+            {% endif %}
+          </div>
+        {% else %}
+          <span class="text-muted">Computer offline</span>
+        {% endif %}
+      </td>
       <td>
         {% if user.is_locked %}
           <span class="status-badge status-locked">
@@ -37,46 +73,6 @@
           <span class="status-badge status-offline">
             ○ Offline
           </span>
-        {% endif %}
-      </td>
-      <td class="text-muted">{{ user.home_dir or '-' }}</td>
-      <td>
-        {% if computer.status == 'online' %}
-          <div class="btn-group">
-            {% if user.is_locked %}
-              <button 
-                class="btn btn-sm btn-success"
-                hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/enable"
-                hx-target="#users-list"
-                hx-swap="innerHTML"
-              >
-                Enable
-              </button>
-            {% else %}
-              <button 
-                class="btn btn-sm btn-warning"
-                hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/disable"
-                hx-target="#users-list"
-                hx-swap="innerHTML"
-              >
-                Disable
-              </button>
-            {% endif %}
-            
-            {% if user.is_logged_in or computer.current_user == user.username %}
-              <button 
-                class="btn btn-sm btn-danger"
-                hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/logout"
-                hx-target="#users-list"
-                hx-swap="innerHTML"
-                hx-confirm="Force logout user {{ user.username }}? Any unsaved work will be lost."
-              >
-                Logout
-              </button>
-            {% endif %}
-          </div>
-        {% else %}
-          <span class="text-muted">Computer offline</span>
         {% endif %}
       </td>
     </tr>
