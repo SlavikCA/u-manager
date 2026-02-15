@@ -10,8 +10,10 @@ function authMiddleware(req, res, next) {
       return res.status(401).send('');
     }
     
-    // Store the original URL to redirect back after login
-    req.session.returnTo = req.originalUrl;
+    // Store the original URL to redirect back after login (skip non-page requests)
+    if (!req.originalUrl.match(/\.(ico|png|jpg|jpeg|gif|svg|css|js)$/)) {
+      req.session.returnTo = req.originalUrl;
+    }
     return res.redirect('/auth/login');
   }
   
