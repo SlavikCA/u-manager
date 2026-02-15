@@ -20,11 +20,15 @@ class Computer {
 
   static create(data) {
     const result = db.run(`
-      INSERT INTO computers (hostname, ip_address, agent_version, status, last_seen_at)
-      VALUES (?, ?, ?, 'online', datetime('now'))
-    `, [data.hostname, data.ip_address, data.agent_version]);
-    
+      INSERT INTO computers (hostname, ip_address, agent_version, api_key_hash, status, last_seen_at)
+      VALUES (?, ?, ?, ?, 'online', datetime('now'))
+    `, [data.hostname, data.ip_address, data.agent_version, data.api_key_hash]);
+
     return this.findById(result.lastInsertRowid);
+  }
+
+  static setApiKeyHash(id, apiKeyHash) {
+    db.run('UPDATE computers SET api_key_hash = ? WHERE id = ?', [apiKeyHash, id]);
   }
 
   static updateHeartbeat(id, data) {

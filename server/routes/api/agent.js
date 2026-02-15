@@ -1,9 +1,12 @@
 const express = require('express');
+const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 const Token = require('../../models/Token');
 const Computer = require('../../models/Computer');
 const User = require('../../models/User');
 const Command = require('../../models/Command');
+const agentAuth = require('../../middleware/agentAuth');
 
 // POST /api/agent/register - Register a new agent with a token
 router.post('/register', (req, res) => {
@@ -22,9 +25,13 @@ router.post('/register', (req, res) => {
     });
   }
   
+  // Generate API key for agent authentication
+  const apiKey = uuidv4();
+  const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+
   // Check if computer with this hostname already exists
   let computer = Computer.findByHostname(hostname);
-  
+
   if (computer) {
     // Update existing computer
     computer = Computer.updateHeartbeat(computer.id, {
@@ -32,66 +39,48 @@ router.post('/register', (req, res) => {
       agent_version,
       current_user: null
     });
+    Computer.setApiKeyHash(computer.id, apiKeyHash);
   } else {
     // Create new computer
     computer = Computer.create({
       hostname,
       ip_address,
-      agent_version
+      agent_version,
+      api_key_hash: apiKeyHash
     });
   }
-  
+
   // Mark token as used
   Token.markUsed(token, computer.id);
-  
+
   res.json({
     status: 'ok',
     computer_id: computer.id,
+    api_key: apiKey,
     message: 'Agent registered successfully'
   });
 });
 
 // POST /api/agent/heartbeat - Agent heartbeat with status update
-router.post('/heartbeat', (req, res) => {
-  const { 
-    computer_id, 
-    hostname,
-    ip_address, 
-    agent_version,
-    current_desktop_user,
-    users 
-  } = req.body;
-  
-  if (!computer_id) {
-    return res.status(400).json({ 
-      error: 'computer_id is required' 
-    });
-  }
-  
-  // Find computer
-  const computer = Computer.findById(computer_id);
-  
-  if (!computer) {
-    return res.status(404).json({ 
-      error: 'Computer not found. Please re-register the agent.' 
-    });
-  }
-  
+router.post('/heartbeat', agentAuth, (req, res) => {
+  const { ip_address, agent_version, current_desktop_user, users } = req.body;
+  const computer = req.computer;
+
   // Update computer heartbeat
-  Computer.updateHeartbeat(computer_id, {
+  Computer.updateHeartbeat(computer.id, {
     ip_address: ip_address || computer.ip_address,
     agent_version: agent_version || computer.agent_version,
     current_user: current_desktop_user || null
   });
-  
+
   // Sync users if provided
   if (users && Array.isArray(users)) {
-    User.syncUsers(computer_id, users);
+    User.syncUsers(computer.id, users);
   }
-  
+
   // Get pending commands for this computer
-  const pendingCommands = Command.findPendingByComputerId(computer_id);
-  
+  const pendingCommands = Command.findPendingByComputerId(computer.id);
+
   // Mark commands as sent
   const commandsToSend = pendingCommands.map(cmd => {
     Command.markSent(cmd.id);
@@ -101,7 +90,7 @@ router.post('/heartbeat', (req, res) => {
       target_user: cmd.target_user
     };
   });
-  
+
   res.json({
     status: 'ok',
     commands: commandsToSend
@@ -109,18 +98,24 @@ router.post('/heartbeat', (req, res) => {
 });
 
 // POST /api/agent/commands/:id/result - Report command execution result
-router.post('/commands/:id/result', (req, res) => {
+router.post('/commands/:id/result', agentAuth, (req, res) => {
   const commandId = req.params.id;
   const { success, error, message } = req.body;
   
   const command = Command.findById(commandId);
-  
+
   if (!command) {
-    return res.status(404).json({ 
-      error: 'Command not found' 
+    return res.status(404).json({
+      error: 'Command not found'
     });
   }
-  
+
+  if (command.computer_id !== req.computer.id) {
+    return res.status(403).json({
+      error: 'Command does not belong to this computer'
+    });
+  }
+
   if (success) {
     Command.markCompleted(commandId, message || 'Success');
     
@@ -146,25 +141,11 @@ router.post('/commands/:id/result', (req, res) => {
 });
 
 // GET /api/agent/commands - Get pending commands (alternative to heartbeat)
-router.get('/commands', (req, res) => {
-  const { computer_id } = req.query;
-  
-  if (!computer_id) {
-    return res.status(400).json({ 
-      error: 'computer_id is required' 
-    });
-  }
-  
-  const computer = Computer.findById(computer_id);
-  
-  if (!computer) {
-    return res.status(404).json({ 
-      error: 'Computer not found' 
-    });
-  }
-  
-  const pendingCommands = Command.findPendingByComputerId(computer_id);
-  
+router.get('/commands', agentAuth, (req, res) => {
+  const computer = req.computer;
+
+  const pendingCommands = Command.findPendingByComputerId(computer.id);
+
   const commandsToSend = pendingCommands.map(cmd => {
     Command.markSent(cmd.id);
     return {
@@ -173,7 +154,7 @@ router.get('/commands', (req, res) => {
       target_user: cmd.target_user
     };
   });
-  
+
   res.json({
     status: 'ok',
     commands: commandsToSend

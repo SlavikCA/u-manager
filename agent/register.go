@@ -19,6 +19,7 @@ type RegisterRequest struct {
 type RegisterResponse struct {
 	Status     string `json:"status"`
 	ComputerID int    `json:"computer_id"`
+	ApiKey     string `json:"api_key"`
 	Message    string `json:"message"`
 	Error      string `json:"error"`
 }
@@ -64,6 +65,7 @@ func register(serverURL, token string) (*Config, error) {
 	cfg := &Config{
 		ComputerID: regResp.ComputerID,
 		ServerURL:  serverURL,
+		ApiKey:     regResp.ApiKey,
 	}
 
 	if err := saveConfig(cfg); err != nil {

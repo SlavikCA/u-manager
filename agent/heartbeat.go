@@ -62,7 +62,15 @@ func sendHeartbeat(cfg *Config) {
 		return
 	}
 
-	resp, err := http.Post(cfg.ServerURL+"/api/agent/heartbeat", "application/json", bytes.NewReader(data))
+	httpReq, err := http.NewRequest("POST", cfg.ServerURL+"/api/agent/heartbeat", bytes.NewReader(data))
+	if err != nil {
+		log.Printf("Failed to create heartbeat request: %v", err)
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+cfg.ApiKey)
+
+	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		log.Printf("Heartbeat failed: %v", err)
 		return

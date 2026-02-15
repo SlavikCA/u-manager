@@ -94,7 +94,15 @@ func reportResult(cfg *Config, commandID int, result CommandResult) {
 	}
 
 	url := fmt.Sprintf("%s/api/agent/commands/%d/result", cfg.ServerURL, commandID)
-	resp, err := http.Post(url, "application/json", bytes.NewReader(data))
+	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(data))
+	if err != nil {
+		log.Printf("Failed to create command result request: %v", err)
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+cfg.ApiKey)
+
+	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		log.Printf("Failed to report command result: %v", err)
 		return

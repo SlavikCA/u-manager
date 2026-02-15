@@ -13,6 +13,7 @@ const configPath = "/etc/linux-user-manager/config.json"
 type Config struct {
 	ComputerID int    `json:"computer_id"`
 	ServerURL  string `json:"server_url"`
+	ApiKey     string `json:"api_key"`
 }
 
 func loadConfig() (*Config, error) {

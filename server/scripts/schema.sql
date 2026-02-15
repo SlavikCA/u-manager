@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS computers (
     hostname TEXT NOT NULL,
     ip_address TEXT,
     agent_version TEXT,
+    api_key_hash TEXT,
     last_seen_at TEXT,
     current_user TEXT,
     status TEXT DEFAULT 'offline',

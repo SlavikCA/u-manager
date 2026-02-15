@@ -77,8 +77,21 @@ function initDatabase() {
     initializeSchema();
     seedAdminUser();
   }
-  
+
+  // Run migrations for existing databases
+  runMigrations();
+
   return db;
+}
+
+// Run migrations for existing databases
+function runMigrations() {
+  try {
+    db.prepare("SELECT api_key_hash FROM computers LIMIT 1").get();
+  } catch (e) {
+    db.exec("ALTER TABLE computers ADD COLUMN api_key_hash TEXT");
+    console.log('Migration: added api_key_hash column to computers');
+  }
 }
 
 // Get the database instance
