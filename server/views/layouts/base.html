@@ -6,6 +6,28 @@
   <title>{% block title %}{{ title }}{% endblock %} - Linux User Manager</title>
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/htmx.min.js"></script>
+  <script>
+  function copyText(text, btn) {
+    function onSuccess() {
+      var orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = orig; }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(onSuccess);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      onSuccess();
+    }
+  }
+  </script>
 </head>
 <body>
   {% if user %}

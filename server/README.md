@@ -14,7 +14,7 @@ A web application for managing Linux users across multiple computers. Built with
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 22+ 
 - npm
 
 ### Installation

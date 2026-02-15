@@ -9,7 +9,7 @@
       <code id="new-token">{{ newToken.token }}</code>
       <button 
         class="btn btn-sm btn-secondary"
-        onclick="navigator.clipboard.writeText('{{ newToken.token }}').then(() => alert('Token copied!'))"
+        onclick="copyText('{{ newToken.token }}', this)"
       >
         Copy
       </button>
@@ -45,7 +45,7 @@
         {% if not token.used_at %}
         <button 
           class="btn btn-xs btn-secondary"
-          onclick="navigator.clipboard.writeText('{{ token.token }}').then(() => alert('Token copied!'))"
+          onclick="copyText('{{ token.token }}', this)"
           title="Copy full token"
         >
           Copy

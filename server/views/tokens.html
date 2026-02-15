@@ -46,9 +46,9 @@
     <p>Use this token when installing the agent on a Linux machine:</p>
     <div class="token-display">
       <code id="new-token">{{ newToken.token }}</code>
-      <button 
+      <button
         class="btn btn-sm btn-secondary"
-        onclick="copyToken()"
+        onclick="copyText(document.getElementById('new-token').textContent, this)"
       >
         Copy
       </button>
@@ -58,15 +58,6 @@
     </p>
   </div>
 </div>
-
-<script>
-function copyToken() {
-  const token = document.getElementById('new-token').textContent;
-  navigator.clipboard.writeText(token).then(() => {
-    alert('Token copied to clipboard!');
-  });
-}
-</script>
 {% endif %}
 
 <div class="card">
