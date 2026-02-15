@@ -18,24 +18,26 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	// Try to load existing config
-	cfg, err := loadConfig()
-	if err != nil {
-		// No config exists, try to register
-		if *token == "" || *serverURL == "" {
-			fmt.Println("Linux User Manager Agent v" + agentVersion)
-			fmt.Println()
-			fmt.Println("No configuration found. To register this agent:")
-			fmt.Println("  sudo lum-agent --server-url http://SERVER:3000 --token YOUR_TOKEN")
-			fmt.Println()
-			fmt.Println("Get a registration token from the web UI at /tokens")
-			os.Exit(1)
-		}
-
-		cfg, err = register(*serverURL, *token)
+	// Registration mode: register and exit
+	if *token != "" && *serverURL != "" {
+		_, err := register(*serverURL, *token)
 		if err != nil {
 			log.Fatalf("Registration failed: %v", err)
 		}
+		fmt.Println("Now restart the service: sudo systemctl restart lum-agent")
+		os.Exit(0)
+	}
+
+	// Service mode: load config and run
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Println("Linux User Manager Agent v" + agentVersion)
+		fmt.Println()
+		fmt.Println("No configuration found. To register this agent:")
+		fmt.Println("  sudo lum-agent --server-url http://SERVER:3000 --token YOUR_TOKEN")
+		fmt.Println()
+		fmt.Println("Get a registration token from the web UI at /tokens")
+		os.Exit(1)
 	}
 
 	log.Printf("Linux User Manager Agent v%s starting (computer_id=%d, server=%s)", agentVersion, cfg.ComputerID, cfg.ServerURL)
