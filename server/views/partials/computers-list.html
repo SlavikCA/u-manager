@@ -8,52 +8,42 @@
 <table class="table">
   <thead>
     <tr>
-      <th>Status</th>
       <th>Hostname</th>
-      <th>IP Address</th>
-      <th>Current User</th>
-      <th>Last Seen</th>
       <th>Actions</th>
+      <th>Status</th>
+      <th>User</th>
     </tr>
   </thead>
   <tbody>
     {% for computer in computers %}
     <tr class="{% if computer.status == 'offline' %}row-offline{% endif %}">
       <td>
-        <span class="status-dot status-{{ computer.status }}"></span>
-        {{ computer.status | capitalize }}
-      </td>
-      <td>
         <strong>{{ computer.hostname }}</strong>
-      </td>
-      <td>{{ computer.ip_address or '-' }}</td>
-      <td>
-        {% if computer.status == 'online' %}
-          {% if computer.current_user %}
-            <span class="user-badge">{{ computer.current_user }}</span>
-          {% else %}
-            <span class="text-muted">No one logged in</span>
-          {% endif %}
-        {% else %}
-          {% if computer.current_user %}
-            <span class="text-muted">Last: {{ computer.current_user }}</span>
-          {% else %}
-            <span class="text-muted">-</span>
-          {% endif %}
-        {% endif %}
-      </td>
-      <td>
-        {% if computer.last_seen_at %}
-          <span title="{{ computer.last_seen_at }}">{{ computer.last_seen_at }}</span>
-        {% else %}
-          <span class="text-muted">Never</span>
-        {% endif %}
       </td>
       <td>
         {% if computer.status == 'online' %}
           <a href="/computers/{{ computer.id }}" class="btn btn-sm btn-primary">Manage</a>
         {% else %}
-          <span class="text-muted">Offline</span>
+          <span class="text-muted">-</span>
+        {% endif %}
+      </td>
+      <td>
+        <span class="status-dot status-{{ computer.status }}"></span>
+        {{ computer.status_label }}
+      </td>
+      <td>
+        {% if computer.status == 'online' %}
+          {% if computer.current_user %}
+            <span class="user-badge">{{ computer.current_user }}</span>
+          {% else %}
+            <span class="text-muted">-</span>
+          {% endif %}
+        {% else %}
+          {% if computer.current_user %}
+            <span class="text-muted">{{ computer.current_user }}</span>
+          {% else %}
+            <span class="text-muted">-</span>
+          {% endif %}
         {% endif %}
       </td>
     </tr>
