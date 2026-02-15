@@ -1,0 +1,13 @@
+[Unit]
+Description=Linux User Manager Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/lum-agent
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

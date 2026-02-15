@@ -1,0 +1,87 @@
+{% if newToken %}
+<div class="card card-highlight" style="margin: 1rem;">
+  <div class="card-header">
+    <h3>🎉 New Token Generated</h3>
+  </div>
+  <div class="card-body">
+    <p>Use this token when installing the agent on a Linux machine:</p>
+    <div class="token-display">
+      <code id="new-token">{{ newToken.token }}</code>
+      <button 
+        class="btn btn-sm btn-secondary"
+        onclick="navigator.clipboard.writeText('{{ newToken.token }}').then(() => alert('Token copied!'))"
+      >
+        Copy
+      </button>
+    </div>
+    <p class="text-muted">
+      <strong>Note:</strong> This token can only be used once. Save it now!
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% if tokens.length == 0 %}
+<div class="empty-state">
+  <p>No tokens generated yet.</p>
+  <p class="text-muted">Generate a token above to register agents on your Linux machines.</p>
+</div>
+{% else %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Token</th>
+      <th>Name</th>
+      <th>Status</th>
+      <th>Created</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for token in tokens %}
+    <tr class="{% if token.used_at %}row-used{% endif %}">
+      <td>
+        <code class="token-preview">{{ token.token | truncate(12, true, '...') }}</code>
+        {% if not token.used_at %}
+        <button 
+          class="btn btn-xs btn-secondary"
+          onclick="navigator.clipboard.writeText('{{ token.token }}').then(() => alert('Token copied!'))"
+          title="Copy full token"
+        >
+          Copy
+        </button>
+        {% endif %}
+      </td>
+      <td>{{ token.name or '-' }}</td>
+      <td>
+        {% if token.used_at %}
+          <span class="status-badge status-used">
+            ✓ Used by {{ token.computer_hostname or 'Unknown' }}
+          </span>
+        {% else %}
+          <span class="status-badge status-available">
+            ○ Available
+          </span>
+        {% endif %}
+      </td>
+      <td>{{ token.created_at }}</td>
+      <td>
+        {% if not token.used_at %}
+        <button 
+          class="btn btn-sm btn-danger"
+          hx-post="/tokens/{{ token.id }}/revoke"
+          hx-target="#tokens-list"
+          hx-swap="innerHTML"
+          hx-confirm="Revoke this token? It will no longer be usable."
+        >
+          Revoke
+        </button>
+        {% else %}
+        <span class="text-muted">In use</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

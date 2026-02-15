@@ -1,0 +1,28 @@
+{
+  "name": "linux-user-manager",
+  "version": "1.0.0",
+  "description": "Web application for managing Linux users across multiple computers",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "init-db": "node scripts/init-db.js"
+  },
+  "keywords": [
+    "linux",
+    "user-management",
+    "htmx",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.6.2",
+    "better-sqlite3-session-store": "^0.1.0",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "nunjucks": "^3.2.4",
+    "uuid": "^11.0.5"
+  }
+}

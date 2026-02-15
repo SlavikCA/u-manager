@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ title }}{% endblock %} - Linux User Manager</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/htmx.min.js"></script>
+</head>
+<body>
+  {% if user %}
+  <header class="header">
+    <div class="header-content">
+      <a href="/" class="logo">🐧 Linux User Manager</a>
+      <nav class="nav">
+        <a href="/" class="nav-link {% if title == 'Dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="/tokens" class="nav-link {% if title == 'Agent Tokens' %}active{% endif %}">Tokens</a>
+        <a href="/audit" class="nav-link {% if title == 'Audit Log' %}active{% endif %}">Audit Log</a>
+      </nav>
+      <div class="user-menu">
+        <span class="username">{{ user.username }}</span>
+        <a href="/auth/logout" class="btn btn-sm btn-secondary">Logout</a>
+      </div>
+    </div>
+  </header>
+  {% endif %}
+  
+  <main class="main">
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</body>
+</html>

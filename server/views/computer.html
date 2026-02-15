@@ -1,0 +1,60 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <div class="breadcrumb">
+    <a href="/">← Back to Dashboard</a>
+  </div>
+  <div class="page-title-row">
+    <h1>{{ computer.hostname }}</h1>
+    <span class="status-badge status-{{ computer.status }}">
+      <span class="status-dot status-{{ computer.status }}"></span>
+      {{ computer.status | capitalize }}
+    </span>
+  </div>
+  <p class="text-muted">
+    IP: {{ computer.ip_address or 'Unknown' }} 
+    {% if computer.agent_version %}| Agent: v{{ computer.agent_version }}{% endif %}
+  </p>
+</div>
+
+{% if computer.status == 'offline' %}
+<div class="alert alert-warning">
+  <strong>Computer is offline.</strong> 
+  Last seen: {{ computer.last_seen_at or 'Never' }}
+  {% if computer.current_user %}
+  <br>Last logged in user: {{ computer.current_user }}
+  {% endif %}
+</div>
+{% else %}
+<div class="info-box">
+  <strong>Current Desktop User:</strong> 
+  {% if computer.current_user %}
+    <span class="user-badge user-badge-lg">{{ computer.current_user }}</span>
+  {% else %}
+    <span class="text-muted">No one logged in</span>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <h2>Users</h2>
+    <div class="card-actions">
+      {% if pendingCommands.length > 0 %}
+      <span class="badge badge-warning">{{ pendingCommands.length }} pending command(s)</span>
+      {% endif %}
+      <span class="text-muted">Auto-refresh: 10s</span>
+    </div>
+  </div>
+  
+  <div 
+    id="users-list"
+    hx-get="/computers/{{ computer.id }}/users"
+    hx-trigger="every 10s"
+    hx-swap="innerHTML"
+  >
+    {% include "partials/users-list.html" %}
+  </div>
+</div>
+{% endblock %}

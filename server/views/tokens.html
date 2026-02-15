@@ -1,0 +1,81 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <div class="breadcrumb">
+    <a href="/">← Back to Dashboard</a>
+  </div>
+  <h1>Agent Tokens</h1>
+  <p class="text-muted">Generate tokens for registering new agents on Linux machines</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Generate New Token</h2>
+  </div>
+  <div class="card-body">
+    <form 
+      hx-post="/tokens/generate"
+      hx-target="#tokens-list"
+      hx-swap="innerHTML"
+      class="form-inline"
+    >
+      <div class="form-group">
+        <label for="name">Token Name (optional)</label>
+        <input 
+          type="text" 
+          id="name" 
+          name="name" 
+          placeholder="e.g., workstation-01"
+          class="form-control"
+        >
+      </div>
+      <button type="submit" class="btn btn-primary">
+        Generate Token
+      </button>
+    </form>
+  </div>
+</div>
+
+{% if newToken %}
+<div class="card card-highlight">
+  <div class="card-header">
+    <h2>🎉 New Token Generated</h2>
+  </div>
+  <div class="card-body">
+    <p>Use this token when installing the agent on a Linux machine:</p>
+    <div class="token-display">
+      <code id="new-token">{{ newToken.token }}</code>
+      <button 
+        class="btn btn-sm btn-secondary"
+        onclick="copyToken()"
+      >
+        Copy
+      </button>
+    </div>
+    <p class="text-muted">
+      <strong>Note:</strong> This token can only be used once. Save it now!
+    </p>
+  </div>
+</div>
+
+<script>
+function copyToken() {
+  const token = document.getElementById('new-token').textContent;
+  navigator.clipboard.writeText(token).then(() => {
+    alert('Token copied to clipboard!');
+  });
+}
+</script>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <h2>All Tokens</h2>
+  </div>
+  
+  <div id="tokens-list">
+    {% include "partials/tokens-list.html" %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% if logs.length == 0 %}
+<div class="empty-state">
+  <p>No audit log entries yet.</p>
+  <p class="text-muted">Actions will be recorded here as you manage users and computers.</p>
+</div>
+{% else %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Admin</th>
+      <th>Action</th>
+      <th>Target Computer</th>
+      <th>Target User</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for log in logs %}
+    <tr>
+      <td>{{ log.created_at }}</td>
+      <td>{{ log.admin_username or '-' }}</td>
+      <td>
+        <span class="action-badge action-{{ log.action }}">
+          {% if log.action == 'login' %}🔑{% endif %}
+          {% if log.action == 'logout' %}🚪{% endif %}
+          {% if log.action == 'disable_user' %}🔒{% endif %}
+          {% if log.action == 'enable_user' %}🔓{% endif %}
+          {% if log.action == 'logout_user' %}⏏️{% endif %}
+          {% if log.action == 'generate_token' %}🎫{% endif %}
+          {% if log.action == 'revoke_token' %}❌{% endif %}
+          {{ log.action | replace('_', ' ') | capitalize }}
+        </span>
+      </td>
+      <td>{{ log.target_computer or '-' }}</td>
+      <td>{{ log.target_user or '-' }}</td>
+      <td class="text-muted">{{ log.details or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if totalPages > 1 %}
+<div class="pagination">
+  {% if currentPage > 1 %}
+  <a 
+    href="/audit?page={{ currentPage - 1 }}"
+    class="btn btn-sm btn-secondary"
+    hx-get="/audit/list?page={{ currentPage - 1 }}"
+    hx-target="#audit-list"
+    hx-swap="innerHTML"
+  >
+    ← Previous
+  </a>
+  {% endif %}
+  
+  <span class="pagination-info">
+    Page {{ currentPage }} of {{ totalPages }}
+  </span>
+  
+  {% if currentPage < totalPages %}
+  <a 
+    href="/audit?page={{ currentPage + 1 }}"
+    class="btn btn-sm btn-secondary"
+    hx-get="/audit/list?page={{ currentPage + 1 }}"
+    hx-target="#audit-list"
+    hx-swap="innerHTML"
+  >
+    Next →
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}
