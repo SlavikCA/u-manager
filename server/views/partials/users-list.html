@@ -49,7 +49,6 @@
                 hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/enable"
                 hx-target="#users-list"
                 hx-swap="innerHTML"
-                hx-confirm="Enable user {{ user.username }}?"
               >
                 Enable
               </button>
@@ -59,7 +58,6 @@
                 hx-post="/computers/{{ computer.id }}/user/{{ user.username }}/disable"
                 hx-target="#users-list"
                 hx-swap="innerHTML"
-                hx-confirm="Disable user {{ user.username }}? They will not be able to log in."
               >
                 Disable
               </button>
