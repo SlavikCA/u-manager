@@ -20,6 +20,9 @@ if ! command -v lum-agent &>/dev/null; then
   exit 1
 fi
 
+# Remove old config so the agent enters registration mode
+rm -f /etc/linux-user-manager/config.json
+
 echo "Registering agent with $SERVER_URL..."
 lum-agent --server-url "$SERVER_URL" --token "$TOKEN" &
 AGENT_PID=$!
