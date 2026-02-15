@@ -8,7 +8,8 @@ class AuditLog {
     ENABLE_USER: 'enable_user',
     LOGOUT_USER: 'logout_user',
     GENERATE_TOKEN: 'generate_token',
-    REVOKE_TOKEN: 'revoke_token'
+    REVOKE_TOKEN: 'revoke_token',
+    CHANGE_PASSWORD: 'change_password'
   };
 
   static findAll(limit = 100, offset = 0) {

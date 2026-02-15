@@ -420,6 +420,7 @@ a:hover {
 .action-logout_user { background-color: #fef3c7; color: #92400e; }
 .action-generate_token { background-color: #f3e8ff; color: #6b21a8; }
 .action-revoke_token { background-color: #fef2f2; color: #991b1b; }
+.action-change_password { background-color: #f0f9ff; color: #0c4a6e; }
 
 /* Forms */
 .form-group {

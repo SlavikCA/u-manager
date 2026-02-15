@@ -49,6 +49,74 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// GET /auth/change-password - Show change password page
+router.get('/change-password', (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/auth/login');
+  }
+  res.render('change-password.html', { title: 'Change Password', error: null, success: null });
+});
+
+// POST /auth/change-password - Process password change
+router.post('/change-password', async (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/auth/login');
+  }
+
+  const { current_password, new_password, confirm_password } = req.body;
+
+  if (!current_password || !new_password || !confirm_password) {
+    return res.render('change-password.html', {
+      title: 'Change Password',
+      error: 'All fields are required',
+      success: null
+    });
+  }
+
+  if (new_password.length < 6) {
+    return res.render('change-password.html', {
+      title: 'Change Password',
+      error: 'New password must be at least 6 characters',
+      success: null
+    });
+  }
+
+  if (new_password !== confirm_password) {
+    return res.render('change-password.html', {
+      title: 'Change Password',
+      error: 'New passwords do not match',
+      success: null
+    });
+  }
+
+  try {
+    const admin = await Admin.authenticate(req.session.user.username, current_password);
+    if (!admin) {
+      return res.render('change-password.html', {
+        title: 'Change Password',
+        error: 'Current password is incorrect',
+        success: null
+      });
+    }
+
+    await Admin.updatePassword(req.session.user.id, new_password);
+    AuditLog.log(req.session.user.id, req.session.user.username, AuditLog.ACTIONS.CHANGE_PASSWORD);
+
+    res.render('change-password.html', {
+      title: 'Change Password',
+      error: null,
+      success: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.render('change-password.html', {
+      title: 'Change Password',
+      error: 'An error occurred while changing password',
+      success: null
+    });
+  }
+});
+
 // POST /auth/logout - Process logout
 router.post('/logout', (req, res) => {
   if (req.session.user) {
