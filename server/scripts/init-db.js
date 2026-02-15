@@ -17,7 +17,7 @@ function initDatabase() {
   db.initDatabase();
   
   // Read and execute schema
-  const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
+  const schemaPath = path.join(__dirname, 'schema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf8');
   
   db.exec(schema);

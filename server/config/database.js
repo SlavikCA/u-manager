@@ -25,7 +25,7 @@ function needsInitialization() {
 
 // Initialize schema from schema.sql
 function initializeSchema() {
-  const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
+  const schemaPath = path.join(__dirname, '..', 'scripts', 'schema.sql');
   if (fs.existsSync(schemaPath)) {
     const schema = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schema);

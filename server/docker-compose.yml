@@ -1,0 +1,7 @@
+services:
+  server:
+    image: ghcr.io/slavikca/u-manager/server:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./.db-local:/app/db
