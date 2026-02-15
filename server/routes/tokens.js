@@ -62,10 +62,11 @@ router.delete('/:id', (req, res) => {
     });
   }
   
-  if (token.used_by_computer_id) {
-    Computer.delete(token.used_by_computer_id);
-  }
+  const computerId = token.used_by_computer_id;
   Token.revoke(req.params.id);
+  if (computerId) {
+    Computer.delete(computerId);
+  }
 
   // Log the action
   AuditLog.log(
@@ -103,10 +104,11 @@ router.post('/:id/revoke', (req, res) => {
     });
   }
 
-  if (token.used_by_computer_id) {
-    Computer.delete(token.used_by_computer_id);
-  }
+  const computerId = token.used_by_computer_id;
   Token.revoke(req.params.id);
+  if (computerId) {
+    Computer.delete(computerId);
+  }
   
   // Log the action
   AuditLog.log(
