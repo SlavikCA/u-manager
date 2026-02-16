@@ -32,18 +32,30 @@
     <h2>🎉 New Token Generated</h2>
   </div>
   <div class="card-body">
-    <p>Use this token when installing the agent on a Linux machine:</p>
+    <p><strong>1. Install the agent:</strong></p>
     <div class="token-display">
-      <code id="new-token">{{ newToken.token }}</code>
+      <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/SlavikCA/u-manager/master/install-agent.sh | sudo bash</code>
       <button
         class="btn btn-sm btn-secondary"
-        onclick="copyText(document.getElementById('new-token').textContent, this)"
+        onclick="copyText(document.getElementById('install-cmd').textContent, this)"
       >
         Copy
       </button>
     </div>
+
+    <p><strong>2. Register with this server:</strong></p>
+    <div class="token-display">
+      <code id="register-cmd">sudo lum-agent --server-url {{ serverUrl }} --token {{ newToken.token }} --screenshots</code>
+      <button
+        class="btn btn-sm btn-secondary"
+        onclick="copyText(document.getElementById('register-cmd').textContent, this)"
+      >
+        Copy
+      </button>
+    </div>
+
     <p class="text-muted">
-      <strong>Note:</strong> This token can only be used once. Save it now!
+      <strong>Note:</strong> The <code>--screenshots</code> flag is optional. This token can only be used once.
     </p>
   </div>
 </div>

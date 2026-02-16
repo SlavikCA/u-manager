@@ -33,18 +33,22 @@ router.post('/generate', (req, res) => {
   
   const tokens = Token.findAll();
   
+  const serverUrl = req.protocol + '://' + req.get('host') + '/';
+
   // For HTMX request, return the tokens list partial with new token highlighted
   if (req.headers['hx-request']) {
-    return res.render('partials/tokens-list.html', { 
+    return res.render('partials/tokens-list.html', {
       tokens,
-      newToken: token
+      newToken: token,
+      serverUrl
     });
   }
-  
+
   res.render('tokens.html', {
     tokens,
     title: 'Agent Tokens',
-    newToken: token
+    newToken: token,
+    serverUrl
   });
 });
 
