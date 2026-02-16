@@ -33,7 +33,6 @@
       <th>Token</th>
       <th>Description</th>
       <th>Status</th>
-      <th>Created</th>
       <th>Actions</th>
     </tr>
   </thead>
@@ -58,13 +57,15 @@
           <span class="status-badge status-used">
             ✓ Used by {{ token.computer_hostname or 'Unknown' }}
           </span>
+          {% if token.computer_last_seen_at %}
+          <br><small class="text-muted">Last seen {{ token.computer_last_seen_at | timeAgo }}</small>
+          {% endif %}
         {% else %}
           <span class="status-badge status-available">
             ○ Available
           </span>
         {% endif %}
       </td>
-      <td>{{ token.created_at }}</td>
       <td>
         <button
           class="btn btn-sm btn-danger"

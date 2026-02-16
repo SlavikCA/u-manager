@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 class Token {
   static findAll() {
     return db.all(`
-      SELECT t.*, c.hostname as computer_hostname
+      SELECT t.*, c.hostname as computer_hostname, c.last_seen_at as computer_last_seen_at
       FROM agent_tokens t
       LEFT JOIN computers c ON t.used_by_computer_id = c.id
       ORDER BY t.created_at DESC
