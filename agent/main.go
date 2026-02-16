@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-const agentVersion = "1.3.0"
+const agentVersion = "1.4.0"
 
 func main() {
 	serverURL := flag.String("server-url", "", "Server URL for registration (e.g. http://192.168.0.230:3000)")
@@ -63,6 +63,9 @@ func main() {
 		log.Printf("Received signal %v, shutting down...", sig)
 		os.Exit(0)
 	}()
+
+	// Start screenshot loop in background
+	go startScreenshotLoop(cfg)
 
 	// Start heartbeat loop (blocks forever)
 	startHeartbeatLoop(cfg)

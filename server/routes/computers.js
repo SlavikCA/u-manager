@@ -4,6 +4,7 @@ const Computer = require('../models/Computer');
 const User = require('../models/User');
 const Command = require('../models/Command');
 const AuditLog = require('../models/AuditLog');
+const screenshotStore = require('../screenshotStore');
 
 // GET /computers/:id - Show computer management page
 router.get('/:id', (req, res) => {
@@ -23,6 +24,17 @@ router.get('/:id', (req, res) => {
     pendingCommands,
     title: computer.hostname
   });
+});
+
+// GET /computers/:id/screenshot - Serve latest screenshot
+router.get('/:id/screenshot', (req, res) => {
+  const data = screenshotStore.get(parseInt(req.params.id));
+  if (!data) {
+    return res.status(404).send('No screenshot available');
+  }
+  res.set('Content-Type', 'image/jpeg');
+  res.set('Cache-Control', 'no-cache');
+  res.send(data);
 });
 
 // GET /computers/:id/users - HTMX partial for refreshing users list

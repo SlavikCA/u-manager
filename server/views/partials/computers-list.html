@@ -10,6 +10,7 @@
     <tr>
       <th>Hostname</th>
       <th>Status</th>
+      <th>Screenshot</th>
     </tr>
   </thead>
   <tbody>
@@ -24,6 +25,20 @@
           {{ computer.current_user if computer.current_user else 'Online' }}
         {% else %}
           {{ computer.status_label }}
+        {% endif %}
+      </td>
+      <td>
+        {% if computer.status == 'online' %}
+        <a href="/computers/{{ computer.id }}">
+          <img
+            src="/computers/{{ computer.id }}/screenshot"
+            alt="Screenshot"
+            style="max-width: 200px; max-height: 120px; border-radius: 4px; border: 1px solid #ddd;"
+            onerror="this.parentElement.innerHTML='<span class=\'text-muted\'>—</span>'"
+          >
+        </a>
+        {% else %}
+        <span class="text-muted">—</span>
         {% endif %}
       </td>
     </tr>

@@ -28,13 +28,39 @@
 </div>
 {% else %}
 <div class="info-box">
-  <strong>Current Desktop User:</strong> 
+  <strong>Current Desktop User:</strong>
   {% if computer.current_user %}
     <span class="user-badge user-badge-lg">{{ computer.current_user }}</span>
   {% else %}
     <span class="text-muted">No one logged in</span>
   {% endif %}
 </div>
+
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="card-header">
+    <h2>Screenshot</h2>
+    <span class="text-muted">Auto-refresh: 30s</span>
+  </div>
+  <div id="screenshot-container" style="padding: 1rem; text-align: center;">
+    <img
+      id="screenshot-img"
+      src="/computers/{{ computer.id }}/screenshot"
+      alt="Desktop screenshot"
+      style="max-width: 100%; border-radius: 4px;"
+      onerror="this.style.display='none'; document.getElementById('screenshot-placeholder').style.display='block';"
+      onload="this.style.display='block'; document.getElementById('screenshot-placeholder').style.display='none';"
+    >
+    <span id="screenshot-placeholder" class="text-muted">No screenshot available yet</span>
+  </div>
+</div>
+<script>
+  setInterval(function() {
+    var img = document.getElementById('screenshot-img');
+    if (img) {
+      img.src = '/computers/{{ computer.id }}/screenshot?' + Date.now();
+    }
+  }, 30000);
+</script>
 {% endif %}
 
 <div class="card">

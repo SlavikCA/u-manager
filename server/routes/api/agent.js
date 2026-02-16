@@ -7,6 +7,7 @@ const Computer = require('../../models/Computer');
 const User = require('../../models/User');
 const Command = require('../../models/Command');
 const agentAuth = require('../../middleware/agentAuth');
+const screenshotStore = require('../../screenshotStore');
 
 // POST /api/agent/register - Register a new agent with a token
 router.post('/register', (req, res) => {
@@ -163,6 +164,12 @@ router.get('/commands', agentAuth, (req, res) => {
     status: 'ok',
     commands: commandsToSend
   });
+});
+
+// POST /api/agent/screenshot - Receive screenshot from agent
+router.post('/screenshot', express.raw({ type: 'image/jpeg', limit: '2mb' }), agentAuth, (req, res) => {
+  screenshotStore.set(req.computer.id, req.body);
+  res.json({ status: 'ok' });
 });
 
 module.exports = router;
