@@ -17,7 +17,6 @@ const agentRoutes = require('./routes/api/agent');
 
 // Initialize database first (synchronous with better-sqlite3)
 db.initDatabase();
-console.log('Database initialized');
 
 const app = express();
 

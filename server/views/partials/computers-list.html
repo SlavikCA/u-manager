@@ -21,7 +21,7 @@
       <td>
         <span class="status-dot status-{{ computer.status }}"></span>
         {% if computer.status == 'online' %}
-          Online{% if computer.current_user %}, user: {{ computer.current_user }}{% endif %}
+          {{ computer.current_user if computer.current_user else 'Online' }}
         {% else %}
           {{ computer.status_label }}
         {% endif %}
