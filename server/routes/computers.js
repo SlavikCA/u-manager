@@ -26,9 +26,10 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// GET /computers/:id/screenshot - Serve latest screenshot
+// GET /computers/:id/screenshot - Serve screenshot by slot
 router.get('/:id/screenshot', (req, res) => {
-  const data = screenshotStore.get(parseInt(req.params.id));
+  const slot = req.query.slot || 'recent';
+  const data = screenshotStore.get(parseInt(req.params.id), slot);
   if (!data) {
     return res.status(404).send('No screenshot available');
   }

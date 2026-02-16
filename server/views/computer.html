@@ -2,9 +2,6 @@
 
 {% block content %}
 <div class="page-header">
-  <div class="breadcrumb">
-    <a href="/">← Back to Dashboard</a>
-  </div>
   <div class="page-title-row">
     <h1>{{ computer.hostname }}</h1>
     <span class="status-badge status-{{ computer.status }}">
@@ -36,31 +33,6 @@
   {% endif %}
 </div>
 
-<div class="card" style="margin-bottom: 1rem;">
-  <div class="card-header">
-    <h2>Screenshot</h2>
-    <span class="text-muted">Auto-refresh: 30s</span>
-  </div>
-  <div id="screenshot-container" style="padding: 1rem; text-align: center;">
-    <img
-      id="screenshot-img"
-      src="/computers/{{ computer.id }}/screenshot"
-      alt="Desktop screenshot"
-      style="max-width: 100%; border-radius: 4px;"
-      onerror="this.style.display='none'; document.getElementById('screenshot-placeholder').style.display='block';"
-      onload="this.style.display='block'; document.getElementById('screenshot-placeholder').style.display='none';"
-    >
-    <span id="screenshot-placeholder" class="text-muted">No screenshot available yet</span>
-  </div>
-</div>
-<script>
-  setInterval(function() {
-    var img = document.getElementById('screenshot-img');
-    if (img) {
-      img.src = '/computers/{{ computer.id }}/screenshot?' + Date.now();
-    }
-  }, 30000);
-</script>
 {% endif %}
 
 <div class="card">
@@ -83,4 +55,42 @@
     {% include "partials/users-list.html" %}
   </div>
 </div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Screenshots</h2>
+    <span class="text-muted">Live auto-refresh: 30s</span>
+  </div>
+  <div style="padding: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+    {% set slots = [
+      { name: 'recent', label: 'Live' },
+      { name: 'min10',  label: '10 min ago' },
+      { name: 'min30',  label: '30 min ago' },
+      { name: 'min60',  label: '1 hour ago' },
+      { name: 'min120', label: '2 hours ago' }
+    ] %}
+    {% for slot in slots %}
+    <div style="flex: 1; min-width: 180px; text-align: center;">
+      <div style="font-weight: 600; margin-bottom: 0.5rem;">{{ slot.label }}</div>
+      <img
+        {% if slot.name == 'recent' %}id="screenshot-live"{% endif %}
+        src="/computers/{{ computer.id }}/screenshot?slot={{ slot.name }}"
+        alt="{{ slot.label }}"
+        style="max-width: 100%; border-radius: 4px; display: block; margin: 0 auto;"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+        onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
+      >
+      <span class="text-muted" style="display: none;">Not available</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<script>
+  setInterval(function() {
+    var img = document.getElementById('screenshot-live');
+    if (img) {
+      img.src = '/computers/{{ computer.id }}/screenshot?slot=recent&t=' + Date.now();
+    }
+  }, 30000);
+</script>
 {% endblock %}
