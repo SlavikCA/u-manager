@@ -13,15 +13,17 @@ router.post('/register', (req, res) => {
   const { token, hostname, ip_address, agent_version } = req.body;
   
   if (!token || !hostname) {
-    return res.status(400).json({ 
-      error: 'Token and hostname are required' 
+    console.log(`[REGISTER] FAILED hostname=${hostname || 'unknown'} ip=${ip_address || 'unknown'} reason=missing_token_or_hostname`);
+    return res.status(400).json({
+      error: 'Token and hostname are required'
     });
   }
   
   // Validate token
   if (!Token.isValid(token)) {
-    return res.status(401).json({ 
-      error: 'Invalid or already used token' 
+    console.log(`[REGISTER] FAILED hostname=${hostname} ip=${ip_address || 'unknown'} reason=invalid_or_used_token`);
+    return res.status(401).json({
+      error: 'Invalid or already used token'
     });
   }
   
@@ -52,6 +54,8 @@ router.post('/register', (req, res) => {
 
   // Mark token as used
   Token.markUsed(token, computer.id);
+
+  console.log(`[REGISTER] OK hostname=${hostname} ip=${ip_address || 'unknown'} computer_id=${computer.id} agent_version=${agent_version || 'unknown'}`);
 
   res.json({
     status: 'ok',

@@ -39,11 +39,17 @@ class AuditLog {
   }
 
   static log(adminId, adminUsername, action, targetComputer = null, targetUser = null, details = null) {
+    const parts = [`[AUDIT] action=${action} admin=${adminUsername}`];
+    if (targetComputer) parts.push(`computer=${targetComputer}`);
+    if (targetUser) parts.push(`user=${targetUser}`);
+    if (details) parts.push(`details=${details}`);
+    console.log(parts.join(' '));
+
     const result = db.run(`
       INSERT INTO audit_log (admin_id, admin_username, action, target_computer, target_user, details)
       VALUES (?, ?, ?, ?, ?, ?)
     `, [adminId, adminUsername, action, targetComputer, targetUser, details]);
-    
+
     return result.lastInsertRowid;
   }
 
