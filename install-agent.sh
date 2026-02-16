@@ -38,6 +38,11 @@ echo "Architecture: $GOARCH"
 echo
 
 # Download binary
+UPGRADE=false
+if [ -f /usr/local/bin/lum-agent ]; then
+  UPGRADE=true
+fi
+
 echo "Downloading $URL..."
 curl -fSL -o /usr/local/bin/lum-agent "$URL"
 chmod 755 /usr/local/bin/lum-agent
@@ -64,8 +69,15 @@ systemctl daemon-reload
 mkdir -p /etc/linux-user-manager
 
 echo
-echo "Installation complete!"
-echo
-echo "To register this agent, run:"
-echo "  sudo lum-agent --server-url http://YOUR_SERVER:3000 --token YOUR_TOKEN"
-echo "  sudo systemctl enable --now lum-agent"
+if [ "$UPGRADE" = true ]; then
+  echo "Upgrade complete!"
+  echo
+  echo "Restarting lum-agent service..."
+  systemctl restart lum-agent
+  echo "Service restarted successfully."
+else
+  echo "Installation complete!"
+  echo
+  echo "To register this agent, run:"
+  echo "  sudo lum-agent --server-url http://YOUR_SERVER:3000 --token YOUR_TOKEN"
+fi
