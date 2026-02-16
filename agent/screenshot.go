@@ -6,15 +6,31 @@ import (
 	"image/jpeg"
 	"log"
 	"net/http"
+	"os"
+	"os/user"
+	"path/filepath"
 	"time"
 
 	"github.com/kbinani/screenshot"
 )
 
 func captureScreenshot() ([]byte, error) {
+	os.Setenv("DISPLAY", ":0")
+
+	desktopUser := getCurrentDesktopUser()
+	if desktopUser != "" {
+		if u, err := user.Lookup(desktopUser); err == nil {
+			xauth := fmt.Sprintf("/run/user/%s/.Xauthority", u.Uid)
+			if _, err := os.Stat(xauth); err != nil {
+				xauth = filepath.Join(u.HomeDir, ".Xauthority")
+			}
+			os.Setenv("XAUTHORITY", xauth)
+		}
+	}
+
 	n := screenshot.NumActiveDisplays()
 	if n == 0 {
-		return nil, fmt.Errorf("no active displays found")
+		return nil, fmt.Errorf("no active displays found (system may be using Wayland, which is not supported)")
 	}
 
 	img, err := screenshot.CaptureDisplay(0)
