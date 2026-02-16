@@ -7,9 +7,15 @@ class User {
 
   static findByComputerId(computerId) {
     return db.all(`
-      SELECT * FROM users 
-      WHERE computer_id = ? 
-      ORDER BY uid
+      SELECT * FROM users
+      WHERE computer_id = ?
+      ORDER BY
+        CASE
+          WHEN is_locked = 1 THEN 2
+          WHEN is_logged_in = 1 THEN 0
+          ELSE 1
+        END,
+        username ASC
     `, [computerId]);
   }
 
