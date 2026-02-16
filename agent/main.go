@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 )
@@ -24,7 +25,18 @@ func main() {
 		if err != nil {
 			log.Fatalf("Registration failed: %v", err)
 		}
-		fmt.Println("Now restart the service: sudo systemctl restart lum-agent")
+		if err := exec.Command("systemctl", "enable", "lum-agent").Run(); err != nil {
+			fmt.Println("Could not enable service automatically. Run manually:")
+			fmt.Println("  sudo systemctl enable lum-agent")
+			fmt.Println("  sudo systemctl restart lum-agent")
+			os.Exit(0)
+		}
+		if err := exec.Command("systemctl", "restart", "lum-agent").Run(); err != nil {
+			fmt.Println("Could not start service automatically. Run manually:")
+			fmt.Println("  sudo systemctl restart lum-agent")
+			os.Exit(0)
+		}
+		fmt.Println("Service enabled and started.")
 		os.Exit(0)
 	}
 
