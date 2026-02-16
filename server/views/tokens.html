@@ -1,18 +1,7 @@
 {% extends "layouts/base.html" %}
 
 {% block content %}
-<div class="page-header">
-  <div class="breadcrumb">
-    <a href="/">← Back to Dashboard</a>
-  </div>
-  <h1>Agent Tokens</h1>
-  <p class="text-muted">Generate tokens for registering new agents on Linux machines</p>
-</div>
-
 <div class="card">
-  <div class="card-header">
-    <h2>Generate New Token</h2>
-  </div>
   <div class="card-body">
     <form 
       hx-post="/tokens/generate"
