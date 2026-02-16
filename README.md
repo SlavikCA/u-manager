@@ -17,3 +17,5 @@ You can pin a version with
 ```
 LUM_VERSION=agent-v1.2.0 curl -fsSL https://raw.githubusercontent.com/SlavikCA/u-manager/master/install-agent.sh | sudo bash
 ```
+
+The curl command can be used for upgrade.

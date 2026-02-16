@@ -43,6 +43,11 @@ if [ -f /usr/local/bin/lum-agent ]; then
   UPGRADE=true
 fi
 
+if [ "$UPGRADE" = true ]; then
+  echo "Stopping lum-agent service..."
+  systemctl stop lum-agent || true
+fi
+
 echo "Downloading $URL..."
 curl -fSL -o /usr/local/bin/lum-agent "$URL"
 chmod 755 /usr/local/bin/lum-agent
