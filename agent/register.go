@@ -24,7 +24,7 @@ type RegisterResponse struct {
 	Error      string `json:"error"`
 }
 
-func register(serverURL, token string) (*Config, error) {
+func register(serverURL, token string, screenshots bool) (*Config, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
@@ -63,9 +63,10 @@ func register(serverURL, token string) (*Config, error) {
 	}
 
 	cfg := &Config{
-		ComputerID: regResp.ComputerID,
-		ServerURL:  serverURL,
-		ApiKey:     regResp.ApiKey,
+		ComputerID:  regResp.ComputerID,
+		ServerURL:   serverURL,
+		ApiKey:      regResp.ApiKey,
+		Screenshots: screenshots,
 	}
 
 	if err := saveConfig(cfg); err != nil {
