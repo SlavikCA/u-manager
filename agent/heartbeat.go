@@ -32,6 +32,8 @@ type Command struct {
 	TargetUser string `json:"target_user"`
 }
 
+var unauthorizedCount int
+
 func startHeartbeatLoop(cfg *Config) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -83,6 +85,16 @@ func sendHeartbeat(cfg *Config) {
 		return
 	}
 
+	if resp.StatusCode == 401 {
+		unauthorizedCount++
+		log.Printf("Unauthorized (401) response from server (%d/5). Check API key.", unauthorizedCount)
+		if unauthorizedCount >= 5 {
+			log.Printf("Received %d consecutive 401 responses. Stopping agent. Please re-register.", unauthorizedCount)
+			os.Exit(3)
+		}
+		return
+	}
+
 	if resp.StatusCode == 404 {
 		log.Printf("Computer not found on server. Please re-register the agent.")
 		return
@@ -92,6 +104,8 @@ func sendHeartbeat(cfg *Config) {
 		log.Printf("Heartbeat returned status %d: %s", resp.StatusCode, string(body))
 		return
 	}
+
+	unauthorizedCount = 0
 
 	var hbResp HeartbeatResponse
 	if err := json.Unmarshal(body, &hbResp); err != nil {
