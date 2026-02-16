@@ -20,8 +20,8 @@ class Command {
 
   static findPendingByComputerId(computerId) {
     return db.all(`
-      SELECT * FROM pending_commands 
-      WHERE computer_id = ? AND status IN ('pending', 'sent')
+      SELECT * FROM pending_commands
+      WHERE computer_id = ? AND status = 'pending'
       ORDER BY created_at ASC
     `, [computerId]);
   }
@@ -77,8 +77,8 @@ class Command {
 
   static getPendingCount(computerId) {
     const result = db.get(`
-      SELECT COUNT(*) as count FROM pending_commands 
-      WHERE computer_id = ? AND status IN ('pending', 'sent')
+      SELECT COUNT(*) as count FROM pending_commands
+      WHERE computer_id = ? AND status = 'pending'
     `, [computerId]);
     return result ? result.count : 0;
   }

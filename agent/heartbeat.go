@@ -33,6 +33,7 @@ type Command struct {
 }
 
 var unauthorizedCount int
+var executedCommands = make(map[int]bool)
 
 func startHeartbeatLoop(cfg *Config) {
 	ticker := time.NewTicker(10 * time.Second)
@@ -114,8 +115,13 @@ func sendHeartbeat(cfg *Config) {
 	}
 
 	for _, cmd := range hbResp.Commands {
+		if executedCommands[cmd.ID] {
+			log.Printf("Skipping already executed command %d (%s %s)", cmd.ID, cmd.Type, cmd.TargetUser)
+			continue
+		}
 		log.Printf("Received command: %s for user %s (id=%d)", cmd.Type, cmd.TargetUser, cmd.ID)
 		executeCommand(cfg, cmd)
+		executedCommands[cmd.ID] = true
 	}
 
 	if len(hbResp.Commands) > 0 {
