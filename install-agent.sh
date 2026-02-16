@@ -65,6 +65,7 @@ Type=simple
 ExecStart=/usr/local/bin/lum-agent
 Restart=always
 RestartSec=10
+RestartPreventExitStatus=3
 
 [Install]
 WantedBy=multi-user.target
