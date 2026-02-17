@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -114,6 +113,7 @@ func sendHeartbeat(cfg *Config) {
 		return
 	}
 
+	newCommandsExecuted := 0
 	for _, cmd := range hbResp.Commands {
 		if executedCommands[cmd.ID] {
 			log.Printf("Skipping already executed command %d (%s %s)", cmd.ID, cmd.Type, cmd.TargetUser)
@@ -122,9 +122,11 @@ func sendHeartbeat(cfg *Config) {
 		log.Printf("Received command: %s for user %s (id=%d)", cmd.Type, cmd.TargetUser, cmd.ID)
 		executeCommand(cfg, cmd)
 		executedCommands[cmd.ID] = true
+		newCommandsExecuted++
 	}
 
-	if len(hbResp.Commands) > 0 {
-		fmt.Printf("Executed %d command(s)\n", len(hbResp.Commands))
+	if newCommandsExecuted > 0 {
+		log.Printf("Executed %d command(s), sending immediate heartbeat to update status", newCommandsExecuted)
+		sendHeartbeat(cfg)
 	}
 }
