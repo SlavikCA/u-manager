@@ -60,9 +60,10 @@ module.exports = {
         }
       }
 
-      const d = new Date(target);
-      const label = d.getHours().toString().padStart(2, '0') + ':' +
-                    d.getMinutes().toString().padStart(2, '0');
+      const minsAgo = Math.round((now - target) / 60000);
+      const label = minsAgo < 60
+        ? minsAgo + ' min ago'
+        : Math.floor(minsAgo / 60) + 'h ' + (minsAgo % 60) + 'm ago';
 
       slots.push({ label, entry: best });
     }

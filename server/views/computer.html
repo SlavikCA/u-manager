@@ -61,14 +61,14 @@
     <h2>Screenshots</h2>
     <span class="text-muted">Auto-refresh: 30s</span>
   </div>
-  <div style="padding: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+  <div id="screenshot-grid" style="padding: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
     <div style="flex: 1; min-width: 180px; text-align: center;">
       <div style="font-weight: 600; margin-bottom: 0.5rem;">Live</div>
       <img
         id="screenshot-live"
         src="/computers/{{ computer.id }}/screenshot"
         alt="Live"
-        style="max-width: 100%; border-radius: 4px; display: block; margin: 0 auto;"
+        style="max-width: 100%; border-radius: 4px; display: block; margin: 0 auto; cursor: pointer;"
         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
         onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
       >
@@ -77,7 +77,58 @@
     <div id="history-slots" style="display: contents;"></div>
   </div>
 </div>
+
+<div id="lightbox" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.9); cursor:pointer; align-items:center; justify-content:center;">
+  <img id="lightbox-img" style="max-width:95vw; max-height:95vh; object-fit:contain;">
+  <div style="position:absolute; bottom:1.5rem; left:50%; transform:translateX(-50%); color:#aaa; font-size:.85rem;">Click or Esc to close &middot; Arrow keys to navigate</div>
+</div>
+
 <script>
+  var lightbox = document.getElementById('lightbox');
+  var lightboxImg = document.getElementById('lightbox-img');
+  var lbIndex = 0;
+
+  function getScreenshotImgs() {
+    return Array.from(document.querySelectorAll('#screenshot-grid img'));
+  }
+
+  function openLightbox(index) {
+    var imgs = getScreenshotImgs();
+    if (index < 0 || index >= imgs.length) return;
+    lbIndex = index;
+    lightboxImg.src = imgs[lbIndex].src;
+    lightbox.style.display = 'flex';
+  }
+
+  function closeLightbox() {
+    lightbox.style.display = 'none';
+  }
+
+  function lbNav(dir) {
+    var imgs = getScreenshotImgs();
+    var next = lbIndex + dir;
+    if (next < 0 || next >= imgs.length) return;
+    lbIndex = next;
+    lightboxImg.src = imgs[lbIndex].src;
+  }
+
+  lightbox.addEventListener('click', closeLightbox);
+  lightboxImg.addEventListener('click', function(e) { e.stopPropagation(); closeLightbox(); });
+
+  document.addEventListener('keydown', function(e) {
+    if (lightbox.style.display !== 'flex') return;
+    if (e.key === 'Escape') closeLightbox();
+    else if (e.key === 'ArrowLeft') lbNav(-1);
+    else if (e.key === 'ArrowRight') lbNav(1);
+  });
+
+  document.getElementById('screenshot-grid').addEventListener('click', function(e) {
+    if (e.target.tagName !== 'IMG') return;
+    var imgs = getScreenshotImgs();
+    var idx = imgs.indexOf(e.target);
+    if (idx !== -1) openLightbox(idx);
+  });
+
   function refreshScreenshots() {
     var live = document.getElementById('screenshot-live');
     if (live) live.src = '/computers/{{ computer.id }}/screenshot?t=' + Date.now();
@@ -92,13 +143,18 @@
           div.style.cssText = 'flex: 1; min-width: 180px; text-align: center;';
           if (slot.data) {
             div.innerHTML = '<div style="font-weight: 600; margin-bottom: 0.5rem;">' + slot.label + '</div>' +
-              '<img src="data:image/jpeg;base64,' + slot.data + '" style="max-width: 100%; border-radius: 4px; display: block; margin: 0 auto;">';
+              '<img src="data:image/jpeg;base64,' + slot.data + '" style="max-width: 100%; border-radius: 4px; display: block; margin: 0 auto; cursor: pointer;">';
           } else {
             div.innerHTML = '<div style="font-weight: 600; margin-bottom: 0.5rem;">' + slot.label + '</div>' +
               '<span class="text-muted">Not available</span>';
           }
           container.appendChild(div);
         });
+        // Update lightbox image if open
+        if (lightbox.style.display === 'flex') {
+          var imgs = getScreenshotImgs();
+          if (lbIndex < imgs.length) lightboxImg.src = imgs[lbIndex].src;
+        }
       });
   }
 
