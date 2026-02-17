@@ -9,14 +9,14 @@
         <span class="status-dot status-online"></span> Online
         <span class="status-dot status-offline"></span> Offline
       </span>
-      <span class="text-muted">Auto-refresh: 10s | Screenshots: 60s</span>
+      <span class="text-muted">Auto-refresh: 60s</span>
     </div>
   </div>
   
   <div
     id="computers-list"
     hx-get="/computers-list"
-    hx-trigger="every 10s"
+    hx-trigger="every 60s"
     hx-swap="innerHTML"
   >
     {% include "partials/computers-list.html" %}
