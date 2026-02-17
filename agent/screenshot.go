@@ -7,44 +7,100 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/kbinani/screenshot"
 )
 
-func captureScreenshot() ([]byte, error) {
-	os.Setenv("DISPLAY", ":0")
+type graphicalSession struct {
+	username string
+	display  string
+	date     string // raw date string for sorting
+}
 
-	desktopUser := getCurrentDesktopUser()
-	if desktopUser != "" {
-		if u, err := user.Lookup(desktopUser); err == nil {
-			xauth := fmt.Sprintf("/run/user/%s/.Xauthority", u.Uid)
-			if _, err := os.Stat(xauth); err != nil {
-				xauth = filepath.Join(u.HomeDir, ".Xauthority")
-			}
-			os.Setenv("XAUTHORITY", xauth)
+// getGraphicalSessions parses `who` output for entries with (:<N>) displays,
+// returning sessions sorted by most recent first.
+func getGraphicalSessions() []graphicalSession {
+	out, err := exec.Command("who").Output()
+	if err != nil {
+		return nil
+	}
+
+	displayRe := regexp.MustCompile(`\(:(\d+)\)`)
+	var sessions []graphicalSession
+
+	for _, line := range strings.Split(string(out), "\n") {
+		matches := displayRe.FindStringSubmatch(line)
+		if matches == nil {
+			continue
 		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		sessions = append(sessions, graphicalSession{
+			username: fields[0],
+			display:  ":" + matches[1],
+			date:     strings.Join(fields[2:len(fields)-1], " "),
+		})
 	}
 
-	n := screenshot.NumActiveDisplays()
-	if n == 0 {
-		return nil, fmt.Errorf("no active displays found (system may be using Wayland, which is not supported)")
-	}
+	// Sort by date descending (most recent first)
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].date > sessions[j].date
+	})
 
-	img, err := screenshot.CaptureDisplay(0)
+	return sessions
+}
+
+func setXauthForUser(username string) {
+	u, err := user.Lookup(username)
 	if err != nil {
-		return nil, fmt.Errorf("capture failed: %w", err)
+		return
+	}
+	xauth := fmt.Sprintf("/run/user/%s/.Xauthority", u.Uid)
+	if _, err := os.Stat(xauth); err != nil {
+		xauth = filepath.Join(u.HomeDir, ".Xauthority")
+	}
+	os.Setenv("XAUTHORITY", xauth)
+}
+
+func captureScreenshot() ([]byte, error) {
+	sessions := getGraphicalSessions()
+	if len(sessions) == 0 {
+		return nil, fmt.Errorf("no graphical sessions found in 'who' output")
 	}
 
-	var buf bytes.Buffer
-	err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 60})
-	if err != nil {
-		return nil, fmt.Errorf("jpeg encode failed: %w", err)
+	for _, sess := range sessions {
+		os.Setenv("DISPLAY", sess.display)
+		setXauthForUser(sess.username)
+
+		n := screenshot.NumActiveDisplays()
+		if n == 0 {
+			continue
+		}
+
+		img, err := screenshot.CaptureDisplay(0)
+		if err != nil {
+			continue
+		}
+
+		var buf bytes.Buffer
+		err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 60})
+		if err != nil {
+			return nil, fmt.Errorf("jpeg encode failed: %w", err)
+		}
+
+		return buf.Bytes(), nil
 	}
 
-	return buf.Bytes(), nil
+	return nil, fmt.Errorf("no active displays found (tried %d session(s))", len(sessions))
 }
 
 func sendScreenshot(cfg *Config, data []byte) {

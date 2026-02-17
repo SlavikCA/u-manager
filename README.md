@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/SlavikCA/u-manager/master/install-a
 
 You can pin a version with 
 ```
-LUM_VERSION=agent-v1.8.0 curl -fsSL https://raw.githubusercontent.com/SlavikCA/u-manager/master/install-agent.sh | sudo bash
+LUM_VERSION=agent-v1.9.0 curl -fsSL https://raw.githubusercontent.com/SlavikCA/u-manager/master/install-agent.sh | sudo bash
 ```
 
 The curl command can be used for upgrade.

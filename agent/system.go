@@ -82,30 +82,10 @@ func getLoggedInUsers() map[string]bool {
 }
 
 func getCurrentDesktopUser() string {
-	// Method 1: Check who is on display :0
-	out, err := exec.Command("who").Output()
-	if err == nil {
-		for _, line := range strings.Split(string(out), "\n") {
-			if strings.Contains(line, ":0") || strings.Contains(line, "tty7") {
-				fields := strings.Fields(line)
-				if len(fields) >= 1 {
-					return fields[0]
-				}
-			}
-		}
+	sessions := getGraphicalSessions()
+	if len(sessions) > 0 {
+		return sessions[0].username
 	}
-
-	// Method 2: Try loginctl
-	out, err = exec.Command("loginctl", "list-sessions", "--no-legend").Output()
-	if err == nil {
-		for _, line := range strings.Split(string(out), "\n") {
-			fields := strings.Fields(line)
-			if len(fields) >= 4 && fields[3] == "seat0" {
-				return fields[2]
-			}
-		}
-	}
-
 	return ""
 }
 
