@@ -23,20 +23,5 @@
   </div>
 </div>
 
-<script>
-(function() {
-  function refreshScreenshots() {
-    const timestamp = Date.now();
-    document.querySelectorAll('#computers-list img[alt="Screenshot"]').forEach(function(img) {
-      const src = img.getAttribute('src');
-      if (src) {
-        const baseUrl = src.split('?')[0];
-        img.setAttribute('src', baseUrl + '?t=' + timestamp);
-      }
-    });
-  }
-  
-  setInterval(refreshScreenshots, 60000);
-})();
-</script>
+
 {% endblock %}

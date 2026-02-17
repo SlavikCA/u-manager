@@ -31,7 +31,7 @@
         {% if computer.status == 'online' %}
         <a href="/computers/{{ computer.id }}">
           <img
-            src="/computers/{{ computer.id }}/screenshot"
+            src="/computers/{{ computer.id }}/screenshot?t={{ now }}"
             alt="Screenshot"
             style="max-width: 200px; max-height: 120px; border-radius: 4px; border: 1px solid #ddd;"
             onerror="this.parentElement.innerHTML='<span class=\'text-muted\'>—</span>'"
