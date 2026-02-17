@@ -10,9 +10,10 @@ import (
 )
 
 type CommandResult struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
-	Error   string `json:"error,omitempty"`
+	ComputerID int    `json:"computer_id"`
+	Success    bool   `json:"success"`
+	Message    string `json:"message,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 func executeCommand(cfg *Config, cmd Command) {
@@ -32,6 +33,7 @@ func executeCommand(cfg *Config, cmd Command) {
 		}
 	}
 
+	result.ComputerID = cfg.ComputerID
 	log.Printf("Command %d (%s %s): success=%v", cmd.ID, cmd.Type, cmd.TargetUser, result.Success)
 
 	reportResult(cfg, cmd.ID, result)
