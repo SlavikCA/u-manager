@@ -59,38 +59,50 @@
 <div class="card">
   <div class="card-header">
     <h2>Screenshots</h2>
-    <span class="text-muted">Live auto-refresh: 30s</span>
+    <span class="text-muted">Auto-refresh: 30s</span>
   </div>
   <div style="padding: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-    {% set slots = [
-      { name: 'recent', label: 'Live' },
-      { name: 'min10',  label: '10 min ago' },
-      { name: 'min30',  label: '30 min ago' },
-      { name: 'min60',  label: '1 hour ago' },
-      { name: 'min120', label: '2 hours ago' }
-    ] %}
-    {% for slot in slots %}
     <div style="flex: 1; min-width: 180px; text-align: center;">
-      <div style="font-weight: 600; margin-bottom: 0.5rem;">{{ slot.label }}</div>
+      <div style="font-weight: 600; margin-bottom: 0.5rem;">Live</div>
       <img
-        {% if slot.name == 'recent' %}id="screenshot-live"{% endif %}
-        src="/computers/{{ computer.id }}/screenshot?slot={{ slot.name }}"
-        alt="{{ slot.label }}"
+        id="screenshot-live"
+        src="/computers/{{ computer.id }}/screenshot"
+        alt="Live"
         style="max-width: 100%; border-radius: 4px; display: block; margin: 0 auto;"
         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
         onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
       >
       <span class="text-muted" style="display: none;">Not available</span>
     </div>
-    {% endfor %}
+    <div id="history-slots" style="display: contents;"></div>
   </div>
 </div>
 <script>
-  setInterval(function() {
-    var img = document.getElementById('screenshot-live');
-    if (img) {
-      img.src = '/computers/{{ computer.id }}/screenshot?slot=recent&t=' + Date.now();
-    }
-  }, 30000);
+  function refreshScreenshots() {
+    var live = document.getElementById('screenshot-live');
+    if (live) live.src = '/computers/{{ computer.id }}/screenshot?t=' + Date.now();
+
+    fetch('/computers/{{ computer.id }}/screenshots')
+      .then(function(r) { return r.json(); })
+      .then(function(slots) {
+        var container = document.getElementById('history-slots');
+        container.innerHTML = '';
+        slots.forEach(function(slot) {
+          var div = document.createElement('div');
+          div.style.cssText = 'flex: 1; min-width: 180px; text-align: center;';
+          if (slot.data) {
+            div.innerHTML = '<div style="font-weight: 600; margin-bottom: 0.5rem;">' + slot.label + '</div>' +
+              '<img src="data:image/jpeg;base64,' + slot.data + '" style="max-width: 100%; border-radius: 4px; display: block; margin: 0 auto;">';
+          } else {
+            div.innerHTML = '<div style="font-weight: 600; margin-bottom: 0.5rem;">' + slot.label + '</div>' +
+              '<span class="text-muted">Not available</span>';
+          }
+          container.appendChild(div);
+        });
+      });
+  }
+
+  refreshScreenshots();
+  setInterval(refreshScreenshots, 30000);
 </script>
 {% endblock %}

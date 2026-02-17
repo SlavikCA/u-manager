@@ -1,83 +1,73 @@
-const SLOTS = {
-  min10:  { target: 10 * 60 * 1000, maxAge: 15 * 60 * 1000 },
-  min30:  { target: 30 * 60 * 1000, maxAge: 45 * 60 * 1000 },
-  min60:  { target: 60 * 60 * 1000, maxAge: 90 * 60 * 1000 },
-  min120: { target: 120 * 60 * 1000, maxAge: 180 * 60 * 1000 },
-};
+// Keep screenshots for up to 2 hours to cover 4 quarter-hour slots
+const MAX_HISTORY_AGE = 2 * 60 * 60 * 1000;
 
-const SLOT_NAMES = ['recent', 'min10', 'min30', 'min60', 'min120'];
-
-// Map<computerId, { recent, min10, min30, min60, min120 }>
-// Each slot: { buffer, timestamp } | null
+// Map<computerId, { buffer, timestamp }[]>
 const screenshots = new Map();
 
-function getEntry(computerId) {
-  if (!screenshots.has(computerId)) {
-    screenshots.set(computerId, {
-      recent: null,
-      min10: null,
-      min30: null,
-      min60: null,
-      min120: null,
-    });
+function getQuarterTargets(now) {
+  // Find the most recent quarter-hour boundary, then go back 4 quarters
+  const d = new Date(now);
+  const min = d.getMinutes();
+  const quarterMin = Math.floor(min / 15) * 15;
+  d.setMinutes(quarterMin, 0, 0);
+
+  const targets = [];
+  for (let i = 1; i <= 4; i++) {
+    targets.push(d.getTime() - (i - 1) * 15 * 60 * 1000);
   }
-  return screenshots.get(computerId);
+  return targets; // [most recent quarter, ..., oldest quarter]
 }
 
 module.exports = {
   set(computerId, buffer) {
-    const entry = getEntry(computerId);
+    if (!screenshots.has(computerId)) screenshots.set(computerId, []);
+    const history = screenshots.get(computerId);
     const now = Date.now();
 
-    // Before overwriting recent, try to promote it into an aged slot
-    if (entry.recent) {
-      const age = now - entry.recent.timestamp;
+    history.push({ buffer, timestamp: now });
 
-      for (const [slotName, { target, maxAge }] of Object.entries(SLOTS)) {
-        if (age > maxAge) continue; // too old for this slot
-        if (age < target * 0.5) continue; // too young for this slot
+    // Prune entries older than MAX_HISTORY_AGE
+    const cutoff = now - MAX_HISTORY_AGE;
+    while (history.length > 0 && history[0].timestamp < cutoff) {
+      history.shift();
+    }
+  },
 
-        const current = entry[slotName];
-        if (!current) {
-          // Slot empty — fill it
-          entry[slotName] = entry.recent;
-        } else {
-          // Replace if new candidate is closer to the target age
-          const currentDist = Math.abs((now - current.timestamp) - target);
-          const candidateDist = Math.abs(age - target);
-          if (candidateDist < currentDist) {
-            entry[slotName] = entry.recent;
-          }
+  getRecent(computerId) {
+    const history = screenshots.get(computerId);
+    if (!history || history.length === 0) return null;
+    return history[history.length - 1].buffer;
+  },
+
+  getSlots(computerId) {
+    const history = screenshots.get(computerId);
+    if (!history || history.length === 0) return [];
+
+    const now = Date.now();
+    const targets = getQuarterTargets(now);
+    const slots = [];
+
+    for (const target of targets) {
+      let best = null;
+      let bestDist = Infinity;
+
+      for (const entry of history) {
+        const dist = Math.abs(entry.timestamp - target);
+        // Only consider screenshots within 7.5 min of the target
+        if (dist < bestDist && dist <= 7.5 * 60 * 1000) {
+          best = entry;
+          bestDist = dist;
         }
       }
+
+      const d = new Date(target);
+      const label = d.getHours().toString().padStart(2, '0') + ':' +
+                    d.getMinutes().toString().padStart(2, '0');
+
+      slots.push({ label, entry: best });
     }
 
-    // Set new recent
-    entry.recent = { buffer, timestamp: now };
-
-    // Expire stale aged slots
-    for (const [slotName, { maxAge }] of Object.entries(SLOTS)) {
-      if (entry[slotName] && (now - entry[slotName].timestamp) > maxAge) {
-        entry[slotName] = null;
-      }
-    }
-  },
-
-  get(computerId, slot) {
-    if (!slot || !SLOT_NAMES.includes(slot)) slot = 'recent';
-    const entry = screenshots.get(computerId);
-    if (!entry || !entry[slot]) return null;
-    return entry[slot].buffer;
-  },
-
-  getSlotInfo(computerId) {
-    const entry = screenshots.get(computerId);
-    if (!entry) return null;
-    const info = {};
-    for (const name of SLOT_NAMES) {
-      info[name] = entry[name] ? { timestamp: entry[name].timestamp } : null;
-    }
-    return info;
+    return slots;
   },
 
   remove(computerId) {

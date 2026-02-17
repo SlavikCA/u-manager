@@ -26,16 +26,26 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// GET /computers/:id/screenshot - Serve screenshot by slot
+// GET /computers/:id/screenshot - Serve latest screenshot
 router.get('/:id/screenshot', (req, res) => {
-  const slot = req.query.slot || 'recent';
-  const data = screenshotStore.get(parseInt(req.params.id), slot);
+  const data = screenshotStore.getRecent(parseInt(req.params.id));
   if (!data) {
     return res.status(404).send('No screenshot available');
   }
   res.set('Content-Type', 'image/jpeg');
   res.set('Cache-Control', 'no-cache');
   res.send(data);
+});
+
+// GET /computers/:id/screenshots - Serve screenshot slots as JSON with inline base64
+router.get('/:id/screenshots', (req, res) => {
+  const slots = screenshotStore.getSlots(parseInt(req.params.id));
+  const result = slots.map(s => ({
+    label: s.label,
+    data: s.entry ? s.entry.buffer.toString('base64') : null,
+  }));
+  res.set('Cache-Control', 'no-cache');
+  res.json(result);
 });
 
 // GET /computers/:id/users - HTMX partial for refreshing users list
