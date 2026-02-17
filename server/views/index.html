@@ -9,11 +9,11 @@
         <span class="status-dot status-online"></span> Online
         <span class="status-dot status-offline"></span> Offline
       </span>
-      <span class="text-muted">Auto-refresh: 10s</span>
+      <span class="text-muted">Auto-refresh: 10s | Screenshots: 60s</span>
     </div>
   </div>
   
-  <div 
+  <div
     id="computers-list"
     hx-get="/computers-list"
     hx-trigger="every 10s"
@@ -22,4 +22,21 @@
     {% include "partials/computers-list.html" %}
   </div>
 </div>
+
+<script>
+(function() {
+  function refreshScreenshots() {
+    const timestamp = Date.now();
+    document.querySelectorAll('#computers-list img[alt="Screenshot"]').forEach(function(img) {
+      const src = img.getAttribute('src');
+      if (src) {
+        const baseUrl = src.split('?')[0];
+        img.setAttribute('src', baseUrl + '?t=' + timestamp);
+      }
+    });
+  }
+  
+  setInterval(refreshScreenshots, 60000);
+})();
+</script>
 {% endblock %}
