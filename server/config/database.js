@@ -67,9 +67,12 @@ function initDatabase() {
   
   db = new Database(dbPath);
   
-  // Enable foreign keys and WAL mode for better performance
+  // Enable foreign keys and DELETE journal mode
+  // DELETE mode is correct for single-process better-sqlite3:
+  // WAL mode is unnecessary here (no concurrent readers/writers)
+  // and can cause corruption when checkpoints silently fail.
   db.pragma('foreign_keys = ON');
-  db.pragma('journal_mode = WAL');
+  db.pragma('journal_mode = DELETE');
   
   // Auto-initialize if database is new or missing tables
   if (isNewDatabase || needsInitialization()) {
