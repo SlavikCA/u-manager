@@ -36,7 +36,9 @@ module.exports = {
   getRecent(computerId) {
     const history = screenshots.get(computerId);
     if (!history || history.length === 0) return null;
-    return history[history.length - 1].buffer;
+    const latest = history[history.length - 1];
+    if (Date.now() - latest.timestamp > 15 * 60 * 1000) return null;
+    return latest.buffer;
   },
 
   getSlots(computerId) {
