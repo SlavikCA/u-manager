@@ -1,7 +1,9 @@
 # Linux-users-management
 
 SERVER offers web UI to manage (enable, disable) Linux users on workstations.
-AGENT is binary program which runs as SystemD on workstation and comminicate with SERVER to report the status of users and receive commands to change user's settings.
+AGENT is binary program which runs as SystemD on workstation and communicates with SERVER to:
+- report the status of users: active, screenshot
+- execute commands for the user: enable/disable, logout
 
 # Installation
 

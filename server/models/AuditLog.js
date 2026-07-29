@@ -7,6 +7,7 @@ class AuditLog {
     DISABLE_USER: 'disable_user',
     ENABLE_USER: 'enable_user',
     LOGOUT_USER: 'logout_user',
+    RESTART_DM: 'restart_dm',
     GENERATE_TOKEN: 'generate_token',
     REVOKE_TOKEN: 'revoke_token',
     CHANGE_PASSWORD: 'change_password'

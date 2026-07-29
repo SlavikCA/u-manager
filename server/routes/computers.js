@@ -217,4 +217,34 @@ router.post('/:id/user/:username/logout', (req, res) => {
   res.redirect(`/computers/${computer.id}`);
 });
 
+// POST /computers/:id/restart-dm - Restart display manager
+router.post('/:id/restart-dm', (req, res) => {
+  const computer = Computer.findById(req.params.id);
+
+  if (!computer) {
+    if (req.headers['hx-request']) {
+      return res.status(404).send('Computer not found');
+    }
+    return res.status(404).render('error.html', {
+      message: 'Computer not found',
+      status: 404
+    });
+  }
+
+  Command.create(computer.id, Command.TYPES.RESTART_DM, null);
+
+  AuditLog.log(
+    req.session.user.id,
+    req.session.user.username,
+    AuditLog.ACTIONS.RESTART_DM,
+    computer.hostname
+  );
+
+  if (req.headers['hx-request']) {
+    return res.send('<span class="text-muted">DM restart queued</span>');
+  }
+
+  res.redirect(`/computers/${computer.id}`);
+});
+
 module.exports = router;

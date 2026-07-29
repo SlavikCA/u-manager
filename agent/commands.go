@@ -26,6 +26,8 @@ func executeCommand(cfg *Config, cmd Command) {
 		result = runEnableUser(cmd.TargetUser)
 	case "logout_user":
 		result = runLogoutUser(cmd.TargetUser)
+	case "restart_dm":
+		result = runRestartDM()
 	default:
 		result = CommandResult{
 			Success: false,
@@ -85,6 +87,20 @@ func runLogoutUser(username string) CommandResult {
 	return CommandResult{
 		Success: true,
 		Message: fmt.Sprintf("User %s has been logged out", username),
+	}
+}
+
+func runRestartDM() CommandResult {
+	out, err := exec.Command("sudo", "systemctl", "restart", "lightdm.service").CombinedOutput()
+	if err != nil {
+		return CommandResult{
+			Success: false,
+			Error:   fmt.Sprintf("failed to restart display manager: %s (%v)", string(out), err),
+		}
+	}
+	return CommandResult{
+		Success: true,
+		Message: "Display manager restarted successfully",
 	}
 }
 

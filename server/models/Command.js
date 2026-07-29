@@ -4,7 +4,8 @@ class Command {
   static TYPES = {
     DISABLE_USER: 'disable_user',
     ENABLE_USER: 'enable_user',
-    LOGOUT_USER: 'logout_user'
+    LOGOUT_USER: 'logout_user',
+    RESTART_DM: 'restart_dm'
   };
 
   static STATUS = {
