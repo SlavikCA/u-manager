@@ -92,7 +92,51 @@ function initDatabase() {
 
 // Run migrations for existing databases
 function runMigrations() {
+  // Migration: pending_commands.target_user must allow NULL.
+  // The "Restart DM" command has no target user, but the original schema declared
+  // target_user TEXT NOT NULL, so Command.create(computer.id, RESTART_DM, null)
+  // threw a SqliteError and the command was never queued.
+  // SQLite cannot ALTER a column, so rebuild the table (the standard 12-step procedure).
+  const pc = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'pending_commands'").get();
+  const needsTargetUserMigration = pc && pc.sql && /target_user\s+TEXT\s+NOT\s+NULL/i.test(pc.sql);
 
+  if (needsTargetUserMigration) {
+    console.log('Migration: making pending_commands.target_user nullable...');
+
+    const fkWasOn = db.pragma('foreign_keys', { simple: true }) === 1;
+    if (fkWasOn) db.pragma('foreign_keys = OFF');
+
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE pending_commands_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            computer_id INTEGER NOT NULL,
+            command_type TEXT NOT NULL,
+            target_user TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT (datetime('now')),
+            executed_at TEXT,
+            result TEXT,
+            FOREIGN KEY (computer_id) REFERENCES computers(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO pending_commands_new
+          (id, computer_id, command_type, target_user, status, created_at, executed_at, result)
+          SELECT id, computer_id, command_type, target_user, status, created_at, executed_at, result
+          FROM pending_commands;
+
+        DROP TABLE pending_commands;
+        ALTER TABLE pending_commands_new RENAME TO pending_commands;
+
+        CREATE INDEX idx_pending_commands_computer_id ON pending_commands(computer_id);
+        CREATE INDEX idx_pending_commands_status ON pending_commands(status);
+      `);
+    })();
+
+    if (fkWasOn) db.pragma('foreign_keys = ON');
+
+    console.log('Migration complete: pending_commands.target_user is now nullable');
+  }
 }
 
 // Get the database instance

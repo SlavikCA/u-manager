@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS pending_commands (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     computer_id INTEGER NOT NULL,
     command_type TEXT NOT NULL,
-    target_user TEXT NOT NULL,
+    target_user TEXT,
     status TEXT DEFAULT 'pending',
     created_at TEXT DEFAULT (datetime('now')),
     executed_at TEXT,
