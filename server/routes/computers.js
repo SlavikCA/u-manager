@@ -18,11 +18,30 @@ router.get('/:id', (req, res) => {
   }
   
   const pendingCommands = Command.findPendingByComputerId(computer.id);
+  const activeRestartCommand = Command.findActiveRestartByComputerId(computer.id);
   
   res.render('computer.html', {
     computer,
     pendingCommands,
+    activeRestartCommand,
     title: computer.hostname
+  });
+});
+
+// GET /computers/:id/restart-dm-button - HTMX partial for the Restart DM button,
+// auto-refreshed so "DM restart queued" clears once the agent completes the command
+router.get('/:id/restart-dm-button', (req, res) => {
+  const computer = Computer.getWithUsers(req.params.id);
+
+  if (!computer) {
+    return res.status(404).send('Computer not found');
+  }
+
+  const activeRestartCommand = Command.findActiveRestartByComputerId(computer.id);
+
+  res.render('partials/restart-dm-button.html', {
+    computer,
+    activeRestartCommand
   });
 });
 
@@ -241,7 +260,12 @@ router.post('/:id/restart-dm', (req, res) => {
   );
 
   if (req.headers['hx-request']) {
-    return res.send('<span class="text-muted">DM restart queued</span>');
+    const updatedComputer = Computer.getWithUsers(computer.id);
+    const activeRestartCommand = Command.findActiveRestartByComputerId(computer.id);
+    return res.render('partials/restart-dm-button.html', {
+      computer: updatedComputer,
+      activeRestartCommand
+    });
   }
 
   res.redirect(`/computers/${computer.id}`);

@@ -27,6 +27,19 @@ class Command {
     `, [computerId]);
   }
 
+  // A restart_dm command is "active" from creation until the agent reports
+  // completion (pending -> sent -> completed/failed). The UI keeps showing
+  // "DM restart queued" while one is in flight.
+  static findActiveRestartByComputerId(computerId) {
+    return db.get(`
+      SELECT * FROM pending_commands
+      WHERE computer_id = ? AND command_type = 'restart_dm'
+        AND status IN ('pending', 'sent')
+      ORDER BY created_at ASC
+      LIMIT 1
+    `, [computerId]);
+  }
+
   static findByComputerId(computerId, limit = 50) {
     return db.all(`
       SELECT * FROM pending_commands 

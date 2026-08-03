@@ -15,14 +15,14 @@
   </p>
 </div>
 {% if computer.status == 'online' %}
-<div style="margin-top: 0.25rem; margin-bottom: 0.25rem;">
-  <button
-    class="btn btn-sm btn-warning"
-    hx-post="/computers/{{ computer.id }}/restart-dm"
-    hx-swap="outerHTML"
-  >
-    Restart DM
-  </button>
+<div
+  id="restart-dm-region"
+  style="margin-top: 0.25rem; margin-bottom: 0.25rem;"
+  hx-get="/computers/{{ computer.id }}/restart-dm-button"
+  hx-trigger="every 10s"
+  hx-swap="innerHTML"
+>
+  {% include "partials/restart-dm-button.html" %}
 </div>
 {% endif %}
 

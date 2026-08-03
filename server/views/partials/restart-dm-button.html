@@ -1,0 +1,12 @@
+{% if activeRestartCommand %}
+<span class="text-muted">DM restart queued</span>
+{% else %}
+<button
+  class="btn btn-sm btn-warning"
+  hx-post="/computers/{{ computer.id }}/restart-dm"
+  hx-target="#restart-dm-region"
+  hx-swap="innerHTML"
+>
+  Restart DM
+</button>
+{% endif %}
