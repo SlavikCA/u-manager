@@ -10,11 +10,18 @@ import (
 const configDir = "/etc/linux-user-manager"
 const configPath = "/etc/linux-user-manager/config.json"
 
+// Screenshot capture methods.
+const (
+	ScreenshotMethodXlib    = "xlib"    // default: X11 grab via kbinani/screenshot
+	ScreenshotMethodConsole = "console" // bundled console-shot.sh: loginctl + runuser + scrot
+)
+
 type Config struct {
-	ComputerID  int    `json:"computer_id"`
-	ServerURL   string `json:"server_url"`
-	ApiKey      string `json:"api_key"`
-	Screenshots bool   `json:"screenshots"`
+	ComputerID       int    `json:"computer_id"`
+	ServerURL        string `json:"server_url"`
+	ApiKey           string `json:"api_key"`
+	Screenshots      bool   `json:"screenshots"`
+	ScreenshotMethod string `json:"screenshot_method"`
 }
 
 func loadConfig() (*Config, error) {
@@ -31,6 +38,12 @@ func loadConfig() (*Config, error) {
 	if cfg.ComputerID == 0 || cfg.ServerURL == "" {
 		return nil, fmt.Errorf("config missing computer_id or server_url")
 	}
+
+	method, err := normalizeScreenshotMethod(cfg.ScreenshotMethod)
+	if err != nil {
+		return nil, err
+	}
+	cfg.ScreenshotMethod = method
 
 	return &cfg, nil
 }
@@ -50,4 +63,16 @@ func saveConfig(cfg *Config) error {
 	}
 
 	return nil
+}
+
+// normalizeScreenshotMethod resolves the screenshot method; an empty value
+// (configs written before this option existed) defaults to xlib.
+func normalizeScreenshotMethod(method string) (string, error) {
+	if method == "" {
+		return ScreenshotMethodXlib, nil
+	}
+	if method == ScreenshotMethodXlib || method == ScreenshotMethodConsole {
+		return method, nil
+	}
+	return "", fmt.Errorf("unknown screenshot method %q (expected %q or %q)", method, ScreenshotMethodXlib, ScreenshotMethodConsole)
 }

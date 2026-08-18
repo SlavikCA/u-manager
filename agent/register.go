@@ -24,7 +24,11 @@ type RegisterResponse struct {
 	Error      string `json:"error"`
 }
 
-func register(serverURL, token string, screenshots bool) (*Config, error) {
+func register(serverURL, token string, screenshots bool, screenshotMethod string) (*Config, error) {
+	method, err := normalizeScreenshotMethod(screenshotMethod)
+	if err != nil {
+		return nil, err
+	}
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
@@ -63,10 +67,11 @@ func register(serverURL, token string, screenshots bool) (*Config, error) {
 	}
 
 	cfg := &Config{
-		ComputerID:  regResp.ComputerID,
-		ServerURL:   serverURL,
-		ApiKey:      regResp.ApiKey,
-		Screenshots: screenshots,
+		ComputerID:       regResp.ComputerID,
+		ServerURL:        serverURL,
+		ApiKey:           regResp.ApiKey,
+		Screenshots:      screenshots,
+		ScreenshotMethod: method,
 	}
 
 	if err := saveConfig(cfg); err != nil {

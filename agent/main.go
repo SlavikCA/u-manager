@@ -10,19 +10,20 @@ import (
 	"syscall"
 )
 
-const agentVersion = "1.11.0"
+const agentVersion = "1.12.0"
 
 func main() {
 	serverURL := flag.String("server-url", "", "Server URL for registration (e.g. http://192.168.0.230:3000)")
 	token := flag.String("token", "", "One-time registration token")
 	screenshots := flag.Bool("screenshots", false, "Enable screenshot capture (default: false)")
+	screenshotMethod := flag.String("screenshot-method", ScreenshotMethodXlib, "Screenshot capture method: xlib or console (default: xlib)")
 	flag.Parse()
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Registration mode: register and exit
 	if *token != "" && *serverURL != "" {
-		_, err := register(*serverURL, *token, *screenshots)
+		_, err := register(*serverURL, *token, *screenshots, *screenshotMethod)
 		if err != nil {
 			log.Fatalf("Registration failed: %v", err)
 		}

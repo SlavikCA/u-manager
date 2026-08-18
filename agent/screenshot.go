@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"image/jpeg"
 	"log"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/kbinani/screenshot"
 )
+
+//go:embed console-shot.sh
+var consoleShotScript string
 
 type graphicalSession struct {
 	username string
@@ -103,6 +107,62 @@ func captureScreenshot() ([]byte, error) {
 	return nil, fmt.Errorf("no active displays found (tried %d session(s))", len(sessions))
 }
 
+// captureScreenshotConsole takes a screenshot with the loginctl/runuser/scrot
+// method: the embedded console-shot.sh is written to a temp file and executed
+// as root; the script finds the active console session and captures it as
+// that session's user. scrot picks JPEG from the .jpg output name, so the
+func captureScreenshotConsole() ([]byte, error) {
+	scriptPath, err := writeConsoleShotScript()
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(scriptPath)
+
+	// Do NOT create the output file: it must be created by scrot running as
+	// the session user, so the user owns and can write it.
+	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("lum-shot-%d-%d.jpg", os.Getpid(), time.Now().UnixNano()))
+	defer os.Remove(outPath)
+
+	cmd := exec.Command("bash", scriptPath, outPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("console-shot failed: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read screenshot output: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("console-shot produced an empty file")
+	}
+	return data, nil
+}
+
+// writeConsoleShotScript materializes the embedded console-shot.sh as a
+// temporary executable file.
+func writeConsoleShotScript() (string, error) {
+	f, err := os.CreateTemp("", "lum-console-shot-*.sh")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp script file: %w", err)
+	}
+	path := f.Name()
+	if _, err := f.WriteString(consoleShotScript); err != nil {
+		f.Close()
+		os.Remove(path)
+		return "", fmt.Errorf("failed to write console-shot script: %w", err)
+	}
+	if err := f.Chmod(0700); err != nil {
+		f.Close()
+		os.Remove(path)
+		return "", fmt.Errorf("failed to make console-shot script executable: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(path)
+		return "", fmt.Errorf("failed to close console-shot script file: %w", err)
+	}
+	return path, nil
+}
+
 func sendScreenshot(cfg *Config, data []byte) {
 	url := fmt.Sprintf("%s/api/agent/screenshot?computer_id=%d", cfg.ServerURL, cfg.ComputerID)
 
@@ -127,11 +187,20 @@ func sendScreenshot(cfg *Config, data []byte) {
 }
 
 func startScreenshotLoop(cfg *Config) {
+	capture := captureScreenshot
+	if cfg.ScreenshotMethod == ScreenshotMethodConsole {
+		if _, err := exec.LookPath("scrot"); err != nil {
+			log.Printf("Screenshot method 'console' requires scrot to be installed; screenshot loop not started")
+			return
+		}
+		capture = captureScreenshotConsole
+	}
+
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		data, err := captureScreenshot()
+		data, err := capture()
 		if err != nil {
 			log.Printf("Screenshot capture failed: %v", err)
 			continue
