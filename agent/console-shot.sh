@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
-# Screenshot of whoever is currently on the console.
-# Run as root:  sudo ./console-shot.sh [output-file]
+# shot.sh — screenshot of whoever is on the console. Run as root.
 set -euo pipefail
 
-# 1) Find the active graphical session (exclude the GDM greeter)
-SESS=$(loginctl list-sessions --no-legend | awk '$6=="active" && $3!="gdm" {print $1; exit}')
-[[ -n "${SESS:-}" ]] || { echo "no active user session" >&2; exit 1; }
+die() { echo "shot: $*" >&2; exit 1; }
 
-# 2) Which user owns it
+SESS=$(loginctl list-sessions --no-legend | awk '$4!="-" && $6=="active" {print $1; exit}')
+[[ -n ${SESS:-} ]] || die "no active console session"
+
 SUSER=$(loginctl show-session "$SESS" -p Name --value)
+PID=$(pgrep -u "$SUSER" -x gnome-shell | head -n1) || die "no gnome-shell for $SUSER"
 
-# 3) Read that user's DISPLAY and XAUTHORITY from gnome-shell's environment
-PID=$(pgrep -u "$SUSER" -x gnome-shell | head -n1)
-ENVPAIRS=$(tr '\0' '\n' < "/proc/$PID/environ" | grep -E '^(DISPLAY|XAUTHORITY)=')
+XENV=$(tr '\0' '\n' < /proc/$PID/environ | grep -E '^(DISPLAY|XAUTHORITY)=')
+[[ -n $XENV ]] || die "no X env in $SUSER's gnome-shell (Wayland?)"
 
-# 4) Take the shot as that user
-OUT="${1:-/tmp/shot-$(date +%Y%m%d-%H%M%S).png}"
-
-runuser -u "$SUSER" -- env $ENVPAIRS scrot -o "$OUT"
-
-echo "Saved $OUT (user: $SUSER, session: $SESS)"
+OUT=${1:-/tmp/shot-$(date +%Y%m%d-%H%M%S).png}
+runuser -u "$SUSER" -- env $XENV scrot -o "$OUT"
+echo "$OUT"
