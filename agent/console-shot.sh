@@ -14,5 +14,5 @@ XENV=$(tr '\0' '\n' < /proc/$PID/environ | grep -E '^(DISPLAY|XAUTHORITY)=')
 [[ -n $XENV ]] || die "no X env in $SUSER's gnome-shell (Wayland?)"
 
 OUT=${1:-/tmp/shot-$(date +%Y%m%d-%H%M%S).png}
-runuser -u "$SUSER" -- env $XENV scrot -o "$OUT"
+runuser -u "$SUSER" -- env $XENV scrot -o --silent "$OUT"
 echo "$OUT"
