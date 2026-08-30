@@ -66,8 +66,8 @@
             🔒 Locked
           </span>
         {% elif user.is_logged_in or computer.current_user == user.username %}
-          <span class="status-badge status-online">
-            ● Logged in
+          <span class="status-badge status-online" title="Logged in {{ user.last_login_at | timeAgo }}">
+            ● Logged in{% if user.last_login_at %} · {{ user.last_login_at | timeAgo }}{% endif %}
           </span>
         {% else %}
           <span class="status-badge status-offline">

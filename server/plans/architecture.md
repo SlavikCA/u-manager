@@ -187,7 +187,8 @@ sequenceDiagram
       "home_dir": "/home/john",
       "shell": "/bin/bash",
       "is_locked": false,
-      "is_logged_in": true
+      "is_logged_in": true,
+      "logged_in_at": 1756546980
     },
     {
       "username": "jane",

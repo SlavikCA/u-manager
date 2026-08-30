@@ -28,6 +28,7 @@ class User {
 
   static upsert(computerId, userData) {
     const existing = this.findByComputerAndUsername(computerId, userData.username);
+    const loginAt = this.loginTimestamp(userData);
     
     if (existing) {
       db.run(`
@@ -37,6 +38,7 @@ class User {
             shell = ?,
             is_locked = ?,
             is_logged_in = ?,
+            last_login_at = COALESCE(?, last_login_at),
             updated_at = datetime('now')
         WHERE id = ?
       `, [
@@ -45,13 +47,14 @@ class User {
         userData.shell,
         userData.is_locked ? 1 : 0,
         userData.is_logged_in ? 1 : 0,
+        loginAt,
         existing.id
       ]);
       return this.findById(existing.id);
     } else {
       const result = db.run(`
-        INSERT INTO users (computer_id, username, uid, home_dir, shell, is_locked, is_logged_in)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (computer_id, username, uid, home_dir, shell, is_locked, is_logged_in, last_login_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         computerId,
         userData.username,
@@ -59,10 +62,21 @@ class User {
         userData.home_dir,
         userData.shell,
         userData.is_locked ? 1 : 0,
-        userData.is_logged_in ? 1 : 0
+        userData.is_logged_in ? 1 : 0,
+        loginAt
       ]);
       return this.findById(result.lastInsertRowid);
     }
+  }
+
+  // Convert the agent-reported login epoch (seconds) to the UTC
+  // "YYYY-MM-DD HH:MM:SS" format used by last_login_at; null when the
+  // agent did not report a login time (older agents or not logged in).
+  static loginTimestamp(userData) {
+    if (!userData.logged_in_at) return null;
+    const d = new Date(userData.logged_in_at * 1000);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString().slice(0, 19).replace('T', ' ');
   }
 
   static syncUsers(computerId, users) {
