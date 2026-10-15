@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
     uid INTEGER NOT NULL,
     home_dir TEXT,
     shell TEXT,
+    is_local INTEGER DEFAULT 1,
     is_locked INTEGER DEFAULT 0,
     is_logged_in INTEGER DEFAULT 0,
     last_login_at TEXT,

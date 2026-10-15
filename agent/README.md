@@ -1,5 +1,34 @@
 # Linux User Manager Agent
 
+## User management
+
+The agent reports every account NSS knows about (UID >= 1000, via
+`getent passwd`), so accounts from a remote directory such as Authentik over
+SSSD show up in the web UI next to local ones.
+
+Disabling and enabling an account depends on where it lives:
+
+- **Local accounts** (`/etc/passwd`): `usermod -L` / `usermod -U`.
+- **Directory accounts** (SSSD/LDAP, reported as `is_local: false`): `usermod`
+  cannot touch them, because it only edits `/etc/passwd`. The agent instead
+  writes `simple_deny_users` into
+  `/etc/sssd/conf.d/99-linux-user-manager.conf` for every sssd domain with
+  `access_provider = simple`, validates the file with `sssctl config-check`,
+  restarts sssd (config changes are only picked up on start) and then checks
+  through PAM (`sssctl user-checks -a acct -s <service> <user>`) that the account
+  is really refused. A configuration sssd rejects is rolled back.
+
+The snippet is the only state the agent keeps: `simple_deny_users` in it is the
+deny list, so a hand edit is honoured on the next heartbeat. A denied account
+that NSS stops enumerating is looked up individually (and reported as locked) so
+it keeps its row on the server; an account the directory no longer returns at all
+is dropped from the report. The deny is per machine: the account itself stays
+active in the directory.
+
+The checks use `sssctl` from the `sssd-tools` package. Without it the agent still
+writes the snippet, but cannot validate it, and reports the disable as unverified;
+install `sssd-tools` on the managed machines.
+
 ## Screenshot capture
 
 Screenshot capture is opt-in at registration:

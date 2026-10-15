@@ -71,6 +71,7 @@ erDiagram
         integer uid
         text home_dir
         text shell
+        integer is_local
         integer is_locked
         text last_login_at
         text updated_at
@@ -186,15 +187,17 @@ sequenceDiagram
       "uid": 1000,
       "home_dir": "/home/john",
       "shell": "/bin/bash",
+      "is_local": true,
       "is_locked": false,
       "is_logged_in": true,
       "logged_in_at": 1756546980
     },
     {
       "username": "jane",
-      "uid": 1001,
+      "uid": 2001,
       "home_dir": "/home/jane",
       "shell": "/bin/bash",
+      "is_local": false,
       "is_locked": false,
       "is_logged_in": false
     }
@@ -221,9 +224,14 @@ sequenceDiagram
 
 | Type | Description | Linux Command |
 |------|-------------|---------------|
-| `disable_user` | Lock user account | `usermod -L username` |
-| `enable_user` | Unlock user account | `usermod -U username` |
+| `disable_user` | Block logins | Local account: `usermod -L username`. Directory account (SSSD/LDAP): `simple_deny_users` in `/etc/sssd/conf.d/99-linux-user-manager.conf` + `systemctl restart sssd` |
+| `enable_user` | Allow logins | Local account: `usermod -U username`. Directory account: drop the entry from that snippet |
 | `logout_user` | Force logout user | `pkill -KILL -u username` |
+
+Directory accounts (reported with `is_local: false`) have no entry in
+`/etc/passwd`, and `usermod` only edits that file, so a denied account is denied
+in the machine's own sssd configuration. The deny is per machine: the account
+stays active in the directory itself.
 
 ## Project Structure
 

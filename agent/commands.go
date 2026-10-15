@@ -42,6 +42,10 @@ func executeCommand(cfg *Config, cmd Command) {
 }
 
 func runDisableUser(username string) CommandResult {
+	if !isLocalUser(username) {
+		return denyDirectoryLogins(username)
+	}
+
 	out, err := exec.Command("usermod", "-L", username).CombinedOutput()
 	if err != nil {
 		return CommandResult{
@@ -56,6 +60,10 @@ func runDisableUser(username string) CommandResult {
 }
 
 func runEnableUser(username string) CommandResult {
+	if !isLocalUser(username) {
+		return allowDirectoryLogins(username)
+	}
+
 	out, err := exec.Command("usermod", "-U", username).CombinedOutput()
 	if err != nil {
 		return CommandResult{
@@ -66,6 +74,54 @@ func runEnableUser(username string) CommandResult {
 	return CommandResult{
 		Success: true,
 		Message: fmt.Sprintf("User %s has been enabled", username),
+	}
+}
+
+// denyDirectoryLogins disables a directory (SSSD/LDAP, e.g. Authentik) account
+// by adding it to this machine's SSSD deny list: usermod only edits
+// /etc/passwd, so it cannot touch an account that lives in the directory.
+func denyDirectoryLogins(username string) CommandResult {
+	if err := denyDirectoryUser(username); err != nil {
+		return CommandResult{
+			Success: false,
+			Error:   fmt.Sprintf("failed to disable user %s: %v", username, err),
+		}
+	}
+
+	// A written configuration is not proof that logins are refused, so ask sssd
+	// through PAM and surface its answer when the account can still log in.
+	blocked, verified, output := loginsDenied(username)
+	if verified && !blocked {
+		return CommandResult{
+			Success: false,
+			Error:   fmt.Sprintf("deny list written and sssd restarted, but the PAM account check still accepts %s: %s", username, output),
+		}
+	}
+
+	message := fmt.Sprintf("User %s has been disabled on this machine (sssd deny list)", username)
+	if !verified {
+		message = fmt.Sprintf("%s - logins could not be verified through PAM: %s", message, output)
+	}
+	return CommandResult{
+		Success: true,
+		Message: message,
+	}
+}
+
+// allowDirectoryLogins re-enables a directory account by removing it from this
+// machine's SSSD deny list. The deny list is used rather than NSS, so an account
+// the directory stopped returning can still be enabled again.
+func allowDirectoryLogins(username string) CommandResult {
+	if err := allowDirectoryUser(username); err != nil {
+		return CommandResult{
+			Success: false,
+			Error:   fmt.Sprintf("failed to enable user %s: %v", username, err),
+		}
+	}
+
+	return CommandResult{
+		Success: true,
+		Message: fmt.Sprintf("User %s can log in to this machine again", username),
 	}
 }
 

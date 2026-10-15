@@ -139,8 +139,10 @@ The agent should:
 1. Register with the server using the token
 2. Send heartbeats every 10 seconds with:
    - Current desktop user
-   - List of users (UID >= 1000)
-   - User lock status
+   - List of users (UID >= 1000) from `getent passwd`, so directory accounts
+     (SSSD/LDAP, e.g. Authentik) are included
+   - User lock status (`passwd -S` for local accounts, the sssd deny list for
+     directory accounts)
 3. Execute commands received from the server
 
 ### 3. Manage Users
@@ -148,9 +150,38 @@ The agent should:
 1. From the Dashboard, click **Manage** on an online computer
 2. View all users on that computer
 3. Use the action buttons:
-   - **Disable**: Lock the user account (prevents login)
-   - **Enable**: Unlock the user account
+   - **Disable**: Prevent the user from logging in
+   - **Enable**: Allow the user to log in again
    - **Logout**: Force terminate all user sessions
+
+#### Local and directory accounts
+
+The agent lists every account NSS knows about (`getent passwd`), so accounts from
+a remote directory (SSSD/LDAP, e.g. Authentik) appear next to local ones. Accounts
+that are not in `/etc/passwd` are marked **Directory** in the user list.
+
+Disabling means something different for the two kinds:
+
+| Account | Disable | Enable |
+|---------|---------|--------|
+| Local (`/etc/passwd`) | `usermod -L`, this machine only | `usermod -U` |
+| Directory (SSSD/LDAP) | Added to `simple_deny_users` in the machine's sssd configuration | Removed from that list |
+
+A directory account cannot be locked with `usermod`: that tool only edits
+`/etc/passwd`, and the account lives in the directory. The agent therefore
+maintains `/etc/sssd/conf.d/99-linux-user-manager.conf` on every affected machine
+and restarts sssd. This requires `access_provider = simple` for the domain; the
+command fails with an explanation when the machine's sssd configuration does not
+support it.
+
+Note that a deny list is per machine. To block an account everywhere, deactivate
+it in the directory itself (Authentik: *Users* → user → *Active* off). Doing that
+is safe for this app: the LDAP outpost still returns deactivated accounts
+(attribute `ak-active`), so they keep appearing in the user list and can be
+re-enabled.
+
+Failed commands are listed as **Recent Failures** in the users panel for 15
+minutes, with the reason reported by the agent.
 
 ## API Endpoints
 

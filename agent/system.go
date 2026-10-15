@@ -2,38 +2,105 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// nssTimeout bounds the NSS enumeration below. getent blocks while a remote
+// directory (SSSD/LDAP) is unreachable, and a stuck getent would stall the
+// heartbeat loop that runs it.
+const nssTimeout = 30 * time.Second
 
 type UserInfo struct {
 	Username   string `json:"username"`
 	UID        int    `json:"uid"`
 	HomeDir    string `json:"home_dir"`
 	Shell      string `json:"shell"`
+	IsLocal    bool   `json:"is_local"`
 	IsLocked   bool   `json:"is_locked"`
 	IsLoggedIn bool   `json:"is_logged_in"`
 	LoggedInAt int64  `json:"logged_in_at,omitempty"` // epoch seconds, 0 when not logged in
 }
 
+// getUsers lists the accounts NSS knows about, so users from remote directories
+// (SSSD/LDAP, e.g. Authentik) show up next to local /etc/passwd accounts.
+//
+//	IsLocal   - the account lives in /etc/passwd; only those can be locked with
+//	            usermod. Directory accounts are denied through the sssd deny list.
+//	IsLocked  - local account: passwd -S; directory account: present in the
+//	            deny list (a directory account has no local shadow entry, so
+//	            passwd -S cannot answer for it).
 func getUsers() []UserInfo {
-	file, err := os.Open("/etc/passwd")
-	if err != nil {
-		return nil
+	denied := deniedUsernames()
+	users := buildUsers(nssPasswdEntries(), localUIDs(), denied, getLoggedInUsers())
+
+	// A denied account can be missing from the NSS enumeration (it is filtered by
+	// nsswitch, or by sssd's filter_users). Look those up one by one so they keep
+	// their row on the server and can still be enabled from the app. Accounts the
+	// directory no longer returns are dropped instead of being reported blindly.
+	reported := make(map[string]bool, len(users))
+	for _, user := range users {
+		reported[user.Username] = true
 	}
-	defer file.Close()
+	for username := range denied {
+		if reported[username] {
+			continue
+		}
+		user, ok := resolveDeniedUser(username)
+		if !ok {
+			continue
+		}
+		users = append(users, user)
+	}
 
-	loggedInUsers := getLoggedInUsers()
+	sort.Slice(users, func(i, j int) bool { return users[i].Username < users[j].Username })
+	return users
+}
 
-	var users []UserInfo
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), ":")
+// lookupNSSUser is indirected so the fallback below can be tested without
+// depending on the accounts of the host running the tests.
+var lookupNSSUser = nssUser
+
+// resolveDeniedUser looks up a denied account that the NSS enumeration did not
+// return. Only directory accounts qualify: the sssd deny list does not apply to
+// local ones, and a name NSS cannot resolve at all (the directory dropped it) is
+// not reported instead of being reported blindly.
+func resolveDeniedUser(username string) (UserInfo, bool) {
+	user, err := lookupNSSUser(username)
+	if err != nil {
+		log.Printf("Denied account %s is not returned by NSS: %v", username, err)
+		return UserInfo{}, false
+	}
+	if user.IsLocal {
+		log.Printf("Denied account %s is a local account, ignoring its sssd deny entry", username)
+		return UserInfo{}, false
+	}
+
+	user.IsLocked = true
+	return user, true
+}
+
+// buildUsers merges the NSS entries with the local accounts, the deny list and
+// the active sessions into the list the server receives.
+//
+// The same name can exist in /etc/passwd and in the directory. Logins resolve
+// through nsswitch order (files before sss), so the local account is kept and
+// the directory duplicate is dropped.
+func buildUsers(entries []string, localAccounts map[string]int, denied map[string]bool, loggedInUsers map[string]time.Time) []UserInfo {
+	users := make([]UserInfo, 0, len(denied))
+	index := make(map[string]int)
+
+	for _, entry := range entries {
+		fields := strings.Split(entry, ":")
 		if len(fields) < 7 {
 			continue
 		}
@@ -44,21 +111,128 @@ func getUsers() []UserInfo {
 		}
 
 		username := fields[0]
+		localUID, isLocal := localAccounts[username]
+		isLocal = isLocal && localUID == uid
+		isLocked := false
+		if isLocal {
+			isLocked = isUserLocked(username)
+		} else {
+			isLocked = denied[username]
+		}
+
 		user := UserInfo{
 			Username: username,
 			UID:      uid,
 			HomeDir:  fields[5],
 			Shell:    fields[6],
-			IsLocked: isUserLocked(username),
+			IsLocal:  isLocal,
+			IsLocked: isLocked,
 		}
 		if loginTime, ok := loggedInUsers[username]; ok {
 			user.IsLoggedIn = true
 			user.LoggedInAt = loginTime.Unix()
 		}
-		users = append(users, user)
+
+		previous, seen := index[username]
+		if !seen {
+			index[username] = len(users)
+			users = append(users, user)
+			continue
+		}
+		if users[previous].IsLocal || !isLocal {
+			continue
+		}
+		users[previous] = user
 	}
 
 	return users
+}
+
+// nssUser resolves a single account through NSS, whichever source provides it.
+func nssUser(username string) (UserInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), nssTimeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, "getent", "passwd", username).Output()
+	if err != nil {
+		return UserInfo{}, fmt.Errorf("account %s not found in NSS: %v", username, err)
+	}
+
+	fields := strings.Split(strings.TrimSpace(string(out)), ":")
+	if len(fields) < 7 {
+		return UserInfo{}, fmt.Errorf("unexpected NSS entry for %s: %q", username, strings.TrimSpace(string(out)))
+	}
+	uid, err := strconv.Atoi(fields[2])
+	if err != nil {
+		return UserInfo{}, fmt.Errorf("unexpected uid for %s: %q", username, fields[2])
+	}
+
+	return UserInfo{
+		Username: fields[0],
+		UID:      uid,
+		HomeDir:  fields[5],
+		Shell:    fields[6],
+		IsLocal:  isLocalUser(fields[0]),
+	}, nil
+}
+
+// nssPasswdEntries runs getent passwd, which goes through nsswitch.conf and
+// therefore includes SSSD/LDAP accounts when the directory has enumeration
+// enabled. /etc/passwd is the fallback so local accounts keep working on hosts
+// without getent or when the directory lookup fails.
+func nssPasswdEntries() []string {
+	ctx, cancel := context.WithTimeout(context.Background(), nssTimeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, "getent", "passwd").Output()
+	if err != nil {
+		log.Printf("getent passwd failed (%v), falling back to /etc/passwd", err)
+		data, readErr := os.ReadFile("/etc/passwd")
+		if readErr != nil {
+			return nil
+		}
+		out = data
+	}
+
+	var entries []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			entries = append(entries, line)
+		}
+	}
+	return entries
+}
+
+// localUIDs maps the accounts in /etc/passwd to their uid. The uid matters:
+// a directory account can share a name with a local one (see getUsers).
+func localUIDs() map[string]int {
+	uids := make(map[string]int)
+
+	data, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return uids
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Split(strings.TrimSpace(line), ":")
+		if len(fields) < 3 {
+			continue
+		}
+		uid, err := strconv.Atoi(fields[2])
+		if err != nil {
+			continue
+		}
+		if _, ok := uids[fields[0]]; !ok {
+			uids[fields[0]] = uid
+		}
+	}
+	return uids
+}
+
+// isLocalUser reports whether usermod can manage the account, i.e. whether
+// /etc/passwd holds an entry with that name.
+func isLocalUser(username string) bool {
+	_, ok := localUIDs()[username]
+	return ok
 }
 
 func isUserLocked(username string) bool {

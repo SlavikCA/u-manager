@@ -137,6 +137,17 @@ function runMigrations() {
 
     console.log('Migration complete: pending_commands.target_user is now nullable');
   }
+
+  // Migration: users.is_local distinguishes /etc/passwd accounts from directory
+  // accounts (SSSD/LDAP, e.g. Authentik). It is display-only: the agent decides
+  // how to disable an account, because that depends on which machine sees it.
+  // Accounts from before this column exists are local ones.
+  const userColumns = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (!userColumns.includes('is_local')) {
+    console.log('Migration: adding users.is_local...');
+    db.exec('ALTER TABLE users ADD COLUMN is_local INTEGER DEFAULT 1');
+    console.log('Migration complete: users.is_local added');
+  }
 }
 
 // Get the database instance

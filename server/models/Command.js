@@ -97,6 +97,19 @@ class Command {
     return result ? result.count : 0;
   }
 
+  // Failed commands are not consumed by the agent, so the users panel shows
+  // them for a while: a rejected disable (unparsable sssd snippet, sssd down,
+  // ...) is otherwise invisible to the administrator.
+  static findRecentFailures(computerId, minutes = 15) {
+    return db.all(`
+      SELECT * FROM pending_commands
+      WHERE computer_id = ?
+        AND status = 'failed'
+        AND datetime(executed_at) > datetime('now', '-' || ? || ' minutes')
+      ORDER BY executed_at DESC
+    `, [computerId, minutes]);
+  }
+
   static cancelPending(computerId, targetUser = null) {
     if (targetUser) {
       db.run(`

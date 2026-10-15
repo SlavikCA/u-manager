@@ -6,6 +6,16 @@ const Command = require('../models/Command');
 const AuditLog = require('../models/AuditLog');
 const screenshotStore = require('../screenshotStore');
 
+// The users panel is re-rendered by HTMX after every action and every 10s, so it
+// always carries the pending commands and the recent failures of the computer.
+function renderUsersList(res, computerId) {
+  return res.render('partials/users-list.html', {
+    computer: Computer.getWithUsers(computerId),
+    pendingCommands: Command.findPendingByComputerId(computerId),
+    recentFailures: Command.findRecentFailures(computerId)
+  });
+}
+
 // GET /computers/:id - Show computer management page
 router.get('/:id', (req, res) => {
   const computer = Computer.getWithUsers(req.params.id);
@@ -19,11 +29,13 @@ router.get('/:id', (req, res) => {
   
   const pendingCommands = Command.findPendingByComputerId(computer.id);
   const activeRestartCommand = Command.findActiveRestartByComputerId(computer.id);
+  const recentFailures = Command.findRecentFailures(computer.id);
   
   res.render('computer.html', {
     computer,
     pendingCommands,
     activeRestartCommand,
+    recentFailures,
     title: computer.hostname
   });
 });
@@ -75,12 +87,7 @@ router.get('/:id/users', (req, res) => {
     return res.status(404).send('Computer not found');
   }
   
-  const pendingCommands = Command.findPendingByComputerId(computer.id);
-  
-  res.render('partials/users-list.html', { 
-    computer,
-    pendingCommands
-  });
+  return renderUsersList(res, computer.id);
 });
 
 // POST /computers/:id/user/:username/disable - Disable a user
@@ -123,12 +130,7 @@ router.post('/:id/user/:username/disable', (req, res) => {
   
   // Return updated users list for HTMX
   if (req.headers['hx-request']) {
-    const updatedComputer = Computer.getWithUsers(computer.id);
-    const pendingCommands = Command.findPendingByComputerId(computer.id);
-    return res.render('partials/users-list.html', { 
-      computer: updatedComputer,
-      pendingCommands
-    });
+    return renderUsersList(res, computer.id);
   }
   
   res.redirect(`/computers/${computer.id}`);
@@ -174,12 +176,7 @@ router.post('/:id/user/:username/enable', (req, res) => {
   
   // Return updated users list for HTMX
   if (req.headers['hx-request']) {
-    const updatedComputer = Computer.getWithUsers(computer.id);
-    const pendingCommands = Command.findPendingByComputerId(computer.id);
-    return res.render('partials/users-list.html', { 
-      computer: updatedComputer,
-      pendingCommands
-    });
+    return renderUsersList(res, computer.id);
   }
   
   res.redirect(`/computers/${computer.id}`);
@@ -225,12 +222,7 @@ router.post('/:id/user/:username/logout', (req, res) => {
   
   // Return updated users list for HTMX
   if (req.headers['hx-request']) {
-    const updatedComputer = Computer.getWithUsers(computer.id);
-    const pendingCommands = Command.findPendingByComputerId(computer.id);
-    return res.render('partials/users-list.html', { 
-      computer: updatedComputer,
-      pendingCommands
-    });
+    return renderUsersList(res, computer.id);
   }
   
   res.redirect(`/computers/${computer.id}`);

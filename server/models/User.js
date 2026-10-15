@@ -28,6 +28,7 @@ class User {
 
   static upsert(computerId, userData) {
     const existing = this.findByComputerAndUsername(computerId, userData.username);
+    const isLocal = userData.is_local === undefined ? true : userData.is_local;
     const loginAt = this.loginTimestamp(userData);
     
     if (existing) {
@@ -36,6 +37,7 @@ class User {
         SET uid = ?,
             home_dir = ?,
             shell = ?,
+            is_local = ?,
             is_locked = ?,
             is_logged_in = ?,
             last_login_at = COALESCE(?, last_login_at),
@@ -45,6 +47,7 @@ class User {
         userData.uid,
         userData.home_dir,
         userData.shell,
+        isLocal ? 1 : 0,
         userData.is_locked ? 1 : 0,
         userData.is_logged_in ? 1 : 0,
         loginAt,
@@ -53,14 +56,15 @@ class User {
       return this.findById(existing.id);
     } else {
       const result = db.run(`
-        INSERT INTO users (computer_id, username, uid, home_dir, shell, is_locked, is_logged_in, last_login_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (computer_id, username, uid, home_dir, shell, is_local, is_locked, is_logged_in, last_login_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         computerId,
         userData.username,
         userData.uid,
         userData.home_dir,
         userData.shell,
+        isLocal ? 1 : 0,
         userData.is_locked ? 1 : 0,
         userData.is_logged_in ? 1 : 0,
         loginAt

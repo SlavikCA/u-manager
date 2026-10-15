@@ -89,15 +89,17 @@ Send periodic heartbeat to report status and receive pending commands. **Should 
       "uid": 1000,
       "home_dir": "/home/john",
       "shell": "/bin/bash",
+      "is_local": true,
       "is_locked": false,
       "is_logged_in": true,
       "logged_in_at": 1756546980
     },
     {
       "username": "jane",
-      "uid": 1001,
+      "uid": 2001,
       "home_dir": "/home/jane",
       "shell": "/bin/bash",
+      "is_local": false,
       "is_locked": false,
       "is_logged_in": false
     }
@@ -122,7 +124,8 @@ Send periodic heartbeat to report status and receive pending commands. **Should 
 | uid | integer | User ID (should be >= 1000) |
 | home_dir | string | Home directory path |
 | shell | string | Default shell |
-| is_locked | boolean | Whether account is locked (check with `passwd -S`) |
+| is_local | boolean | Account lives in `/etc/passwd` (an account from a directory such as SSSD/LDAP/Authentik reports `false`) |
+| is_locked | boolean | Local account: locked state from `passwd -S`. Directory account: whether this machine denies its logins through the sssd deny list |
 | is_logged_in | boolean | Whether user has active sessions |
 | logged_in_at | integer | Epoch seconds of the current session's login time (from `who`). Omitted when the user is not logged in |
 
@@ -213,7 +216,7 @@ The server may send the following command types:
 
 ### disable_user
 
-Lock a user account to prevent login.
+Block logins for a user account.
 
 ```json
 {
@@ -223,14 +226,20 @@ Lock a user account to prevent login.
 }
 ```
 
-**Recommended Linux command:**
+**Linux command:**
 ```bash
+# local account (in /etc/passwd)
 usermod -L <username>
+
+# directory account (SSSD/LDAP, e.g. Authentik): usermod cannot touch it, so the
+# account is denied in this machine's own sssd configuration instead
+echo "simple_deny_users = <username>" > /etc/sssd/conf.d/99-linux-user-manager.conf
+sssctl config-check && systemctl restart sssd
 ```
 
 ### enable_user
 
-Unlock a user account to allow login.
+Allow logins for a user account again.
 
 ```json
 {
@@ -240,9 +249,14 @@ Unlock a user account to allow login.
 }
 ```
 
-**Recommended Linux command:**
+**Linux command:**
 ```bash
+# local account
 usermod -U <username>
+
+# directory account: remove the entry from the generated sssd snippet
+# (deleting the snippet when no user is denied anymore)
+sssctl config-check && systemctl restart sssd
 ```
 
 ### logout_user
@@ -281,8 +295,10 @@ pkill -KILL -u <username>
 every 10 seconds:
     1. Gather system information:
        - Get current desktop user (check display manager or `who`)
-       - Get list of users with UID >= 1000 from /etc/passwd
-       - Check lock status for each user (passwd -S)
+       - Get list of users with UID >= 1000 from NSS (`getent passwd`), which
+         includes accounts from remote directories (SSSD/LDAP, e.g. Authentik)
+       - Local accounts: check lock status with `passwd -S`
+       - Directory accounts: check the sssd deny list (see below)
        - Check login status for each user (who, w, or loginctl)
     
     2. Send POST /api/agent/heartbeat
@@ -293,20 +309,52 @@ every 10 seconds:
            - Report result via POST /api/agent/commands/:id/result
 ```
 
-### Getting Users from /etc/passwd
+### Getting Users from NSS
 
 ```bash
-# Get users with UID >= 1000 (excluding nobody/nogroup)
-awk -F: '$3 >= 1000 && $3 < 65534 {print $1":"$3":"$6":"$7}' /etc/passwd
+# Every account NSS knows about (files, sssd, ...) with UID >= 1000
+# (excluding nobody/nogroup)
+getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1":"$3":"$6":"$7}'
 ```
+
+`getent passwd` without arguments goes through the NSS enumeration path, so an
+SSSD domain has to be configured with `enumerate = true` for its accounts to be
+listed. Single lookups (`getent passwd <name>`) work without enumeration.
+
+Accounts that are not in `/etc/passwd` come from a directory and report
+`is_local: false` in the heartbeat.
 
 ### Checking if User is Locked
 
 ```bash
-# Check user lock status
+# Local accounts only: a directory account has no local shadow entry, so
+# passwd -S cannot answer for it.
 passwd -S username
 # Output: username L ... (L = locked, P = has password)
 ```
+
+### Disabling Directory Accounts
+
+`usermod` only edits `/etc/passwd` and `/etc/shadow`, so it cannot lock an
+account that lives in the directory. Such an account is denied in the machine's
+own sssd configuration instead:
+
+* the agent writes `/etc/sssd/conf.d/99-linux-user-manager.conf` with
+  `simple_deny_users` for every domain that uses `access_provider = simple`
+  (deny rules supersede matched allow rules, see `sssd-simple(5)`),
+* validates it with `sssctl config-check` and restarts sssd (SSSD only re-reads
+  its configuration on start; SIGHUP merely rotates the log files),
+* confirms through PAM that the account can no longer log in
+  (`sssctl user-checks -a acct -s <pam-service> <username>`) and rolls the
+  configuration back if sssd refuses it,
+* treats that snippet as the deny list: `simple_deny_users` is read back on the
+  next heartbeat, so a hand edit is honoured, and the denied accounts are
+  reported as `is_locked: true`. An account NSS stops enumerating is looked up
+  individually so it keeps its row on the server; one the directory no longer
+  returns at all is dropped from the report.
+
+The deny is per machine: the account stays active in the directory, so
+disabling it here does not stop its other logins (SSO, other hosts).
 
 ### Getting Current Desktop User
 
