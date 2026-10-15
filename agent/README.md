@@ -18,6 +18,14 @@ Disabling and enabling an account depends on where it lives:
   through PAM (`sssctl user-checks -a acct -s <service> <user>`) that the account
   is really refused. A configuration sssd rejects is rolled back.
 
+`sssctl config-check` validates the whole configuration, so it also reports what
+`sssd.conf` itself got wrong, and the option lists the validator ships with are
+older than the daemon's (on Ubuntu `ldap_auth_disable_tls_never_use_in_production`
+and `config_file_version` are flagged although the daemon accepts them). Only
+problems the generated snippet *adds* block the operation; problems that were
+already there are logged and ignored, since they would otherwise make disabling
+directory accounts impossible on a machine whose SSSD works.
+
 The snippet is the only state the agent keeps: `simple_deny_users` in it is the
 deny list, so a hand edit is honoured on the next heartbeat. A denied account
 that NSS stops enumerating is looked up individually (and reported as locked) so
@@ -54,7 +62,7 @@ sudo lum-agent --server-url http://SERVER:3000 --token TOKEN --screenshots --scr
 ## Publishing a release
 
 ```
-git tag agent-v2.0.1
+git tag agent-v2.0.2
 git push --tags
 ```
 

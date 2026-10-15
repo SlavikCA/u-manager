@@ -101,12 +101,30 @@ func applyDenyList(denied map[string]bool) error {
 		}
 	}
 
+	// sssctl config-check validates the whole configuration, so it also reports
+	// what the administrator's own sssd.conf got wrong, and on Ubuntu the
+	// validator's option lists are older than the daemon's (an option the
+	// daemon accepts, ldap_auth_disable_tls_never_use_in_production for one, is
+	// not listed there). Such problems never go away on their own, so only the
+	// problems the deny list adds may block the operation.
+	existing, checked := sssdConfigProblems()
+	if !checked {
+		log.Printf("sssctl not found, skipping configuration check")
+	}
+	if len(existing) > 0 {
+		log.Printf("sssctl config-check already reports %d problem(s) without the deny list, ignoring: %s",
+			len(existing), strings.Join(existing, " "))
+	}
+
 	if err := writeDenySnippet(denySnippetPath(), domains, denied); err != nil {
 		return err
 	}
-	if err := checkSSSDConfig(); err != nil {
-		rollback()
-		return err
+	if checked {
+		now, _ := sssdConfigProblems()
+		if added := addedProblems(existing, now); len(added) > 0 {
+			rollback()
+			return fmt.Errorf("sssctl config-check rejected the deny list: %s", strings.Join(added, " "))
+		}
 	}
 	if err := restartSSSD(); err != nil {
 		rollback()
@@ -296,19 +314,62 @@ func splitSSSDList(value string) []string {
 	return values
 }
 
-// checkSSSDConfig runs sssctl config-check when available: a snippet SSSD
-// refuses to parse would take directory logins down on the whole machine.
-func checkSSSDConfig() error {
+// sssdConfigProblems returns the problems sssctl config-check reports for the
+// configuration currently on disk, with the volatile parts of the report (the
+// issue count, the list of snippet files) removed so that two runs are
+// comparable. checked is false when sssctl is not installed.
+func sssdConfigProblems() (problems []string, checked bool) {
 	path, err := lookPath("sssctl")
 	if err != nil {
-		log.Printf("sssctl not found, skipping configuration check")
-		return nil
+		return nil, false
 	}
+
 	out, err := runCommand(path, "config-check")
-	if err != nil {
-		return fmt.Errorf("sssctl config-check failed: %s", strings.TrimSpace(string(out)))
+	if err == nil {
+		return nil, true
 	}
-	return nil
+
+	inSnippetList := false
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		switch {
+		case inSnippetList && strings.HasPrefix(line, "/"):
+			// File names of the snippets that were merged, one per line.
+			continue
+		case strings.HasPrefix(line, "Issues identified by validators:"),
+			strings.HasPrefix(line, "Messages generated during configuration merging:"),
+			strings.HasPrefix(line, "Used configuration snippet files:"):
+			inSnippetList = strings.HasPrefix(line, "Used configuration snippet files:")
+			continue
+		default:
+			inSnippetList = false
+			problems = append(problems, line)
+		}
+	}
+	return problems, true
+}
+
+// addedProblems returns the problems in after that were not in before, so a
+// report that only repeats what the configuration already got wrong is not
+// mistaken for a problem introduced by a change.
+func addedProblems(before, after []string) []string {
+	remaining := make(map[string]int, len(before))
+	for _, problem := range before {
+		remaining[problem]++
+	}
+
+	var added []string
+	for _, problem := range after {
+		if remaining[problem] > 0 {
+			remaining[problem]--
+			continue
+		}
+		added = append(added, problem)
+	}
+	return added
 }
 
 // restartSSSD is the only way to apply configuration changes: SIGHUP just

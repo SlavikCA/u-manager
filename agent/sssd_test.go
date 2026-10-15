@@ -218,18 +218,22 @@ func TestApplyDenyList(t *testing.T) {
 		assertSnippetDenies(t, "alice", "carol")
 	})
 
-	t.Run("rolls back a rejected configuration", func(t *testing.T) {
+	t.Run("rolls back a configuration the snippet breaks", func(t *testing.T) {
 		newSSSDFixture(t, conf, nil)
 
 		runCommand = func(name string, args ...string) ([]byte, error) {
-			if strings.Contains(name, "sssctl") {
-				return []byte("Invalid configuration"), errors.New("exit status 1")
+			if !strings.Contains(name, "sssctl") {
+				return nil, nil
+			}
+			if _, err := os.Stat(denySnippetPath()); err == nil {
+				return []byte("Issues identified by validators: 1\n" +
+					"[rule/allowed_domain_options]: Attribute 'simple_deny_users' is not allowed in section 'domain/authentik'. Check for typos.\n"), errors.New("exit status 1")
 			}
 			return nil, nil
 		}
 
 		err := denyDirectoryUser("alice")
-		if err == nil || !strings.Contains(err.Error(), "config-check failed") {
+		if err == nil || !strings.Contains(err.Error(), "rejected the deny list") {
 			t.Fatalf("want a config-check error, got %v", err)
 		}
 		if _, statErr := os.Stat(denySnippetPath()); !os.IsNotExist(statErr) {
@@ -237,14 +241,41 @@ func TestApplyDenyList(t *testing.T) {
 		}
 	})
 
+	t.Run("ignores problems that predate the snippet", func(t *testing.T) {
+		newSSSDFixture(t, conf, nil)
+
+		// What sssctl reports on a working Ubuntu machine: the validator's
+		// option lists are older than the daemon's, so it flags options the
+		// daemon accepts. Those problems are here to stay and must not block
+		// the deny list.
+		runCommand = func(name string, args ...string) ([]byte, error) {
+			if !strings.Contains(name, "sssctl") {
+				return nil, nil
+			}
+			return []byte(preexistingReport), errors.New("exit status 1")
+		}
+
+		if err := denyDirectoryUser("stephen"); err != nil {
+			t.Fatalf("a pre-existing config-check problem must not block the deny list: %v", err)
+		}
+		assertSnippetDenies(t, "stephen")
+	})
+
 	t.Run("rolls back to the previous list", func(t *testing.T) {
 		newSSSDFixture(t, conf, map[string]string{
 			denySnippetName: "[domain/authentik]\nsimple_deny_users = carol\n",
 		})
 
+		// The list on disk is accepted, adding alice makes the validator
+		// complain, so the rewrite has to be undone.
 		runCommand = func(name string, args ...string) ([]byte, error) {
-			if strings.Contains(name, "sssctl") {
-				return nil, errors.New("exit status 1")
+			if !strings.Contains(name, "sssctl") {
+				return nil, nil
+			}
+			data, _ := os.ReadFile(denySnippetPath())
+			if strings.Contains(string(data), "alice") {
+				return []byte("Issues identified by validators: 1\n" +
+					"[rule/allowed_domain_options]: Attribute 'simple_deny_users' is not allowed in section 'domain/authentik'. Check for typos.\n"), errors.New("exit status 1")
 			}
 			return nil, nil
 		}
@@ -286,6 +317,105 @@ func assertSnippetDenies(t *testing.T, names ...string) {
 	}
 	if len(denied) != len(names) {
 		t.Fatalf("want exactly %v denied, got %v", names, denied)
+	}
+}
+
+// preexistingReport is real sssctl output from an Ubuntu machine whose SSSD
+// works: the validator's option lists ship without options the daemon accepts
+// (ldap_auth_disable_tls_never_use_in_production) and without
+// config_file_version, so an otherwise healthy configuration never passes
+// config-check.
+const preexistingReport = "Issues identified by validators: 2\n" +
+	"[rule/allowed_sssd_options]: Attribute 'config_file_version' is not allowed in section 'sssd'. Check for typos.\n" +
+	"[rule/allowed_domain_options]: Attribute 'ldap_auth_disable_tls_never_use_in_production' is not allowed in section 'domain/authentik'. Check for typos.\n" +
+	"\nMessages generated during configuration merging: 0\n" +
+	"\nUsed configuration snippet files: 1\n" +
+	"/etc/sssd/conf.d/99-linux-user-manager.conf\n"
+
+func TestSSSDConfigProblems(t *testing.T) {
+	t.Cleanup(func() {
+		lookPath = exec.LookPath
+		runCommand = defaultRunCommand
+	})
+	lookPath = func(name string) (string, error) { return "/usr/sbin/sssctl", nil }
+
+	t.Run("keeps the issues and drops the counts and snippet list", func(t *testing.T) {
+		runCommand = func(name string, args ...string) ([]byte, error) {
+			return []byte(preexistingReport), errors.New("exit status 1")
+		}
+
+		problems, checked := sssdConfigProblems()
+		if !checked {
+			t.Fatal("sssctl is installed, want checked")
+		}
+		want := []string{
+			"[rule/allowed_sssd_options]: Attribute 'config_file_version' is not allowed in section 'sssd'. Check for typos.",
+			"[rule/allowed_domain_options]: Attribute 'ldap_auth_disable_tls_never_use_in_production' is not allowed in section 'domain/authentik'. Check for typos.",
+		}
+		if strings.Join(problems, "\n") != strings.Join(want, "\n") {
+			t.Fatalf("want %v, got %v", want, problems)
+		}
+	})
+
+	t.Run("keeps configuration merge errors", func(t *testing.T) {
+		runCommand = func(name string, args ...string) ([]byte, error) {
+			return []byte(preexistingReport +
+				"Messages generated during configuration merging: 3\n" +
+				"Errors detected while parsing: /etc/sssd/conf.d/99-linux-user-manager.conf.\n" +
+				"Error (5) on line 1: Equal sign is missing.\n" +
+				"Due to errors file /etc/sssd/conf.d/99-linux-user-manager.conf is not considered. Skipping.\n"), errors.New("exit status 1")
+		}
+
+		problems, checked := sssdConfigProblems()
+		if !checked {
+			t.Fatal("sssctl is installed, want checked")
+		}
+		if len(problems) != 5 || !strings.Contains(problems[2], "Errors detected while parsing") {
+			t.Fatalf("merge errors were dropped: %v", problems)
+		}
+	})
+
+	t.Run("no sssctl", func(t *testing.T) {
+		lookPath = func(name string) (string, error) { return "", errors.New("not found") }
+		t.Cleanup(func() { lookPath = func(name string) (string, error) { return "/usr/sbin/sssctl", nil } })
+
+		problems, checked := sssdConfigProblems()
+		if checked || len(problems) != 0 {
+			t.Fatalf("want no problems and checked=false, got %v, %v", problems, checked)
+		}
+	})
+
+	t.Run("clean configuration", func(t *testing.T) {
+		runCommand = func(name string, args ...string) ([]byte, error) {
+			return []byte("Issues identified by validators: 0\n"), nil
+		}
+
+		problems, checked := sssdConfigProblems()
+		if !checked || len(problems) != 0 {
+			t.Fatalf("want no problems and checked=true, got %v, %v", problems, checked)
+		}
+	})
+}
+
+func TestAddedProblems(t *testing.T) {
+	tests := []struct {
+		name          string
+		before, after []string
+		want          []string
+	}{
+		{"nothing new", []string{"a", "b"}, []string{"b", "a"}, nil},
+		{"dropped problems are not additions", []string{"a", "b"}, []string{"a"}, nil},
+		{"repeated problem is counted", []string{"a"}, []string{"a", "a"}, []string{"a"}},
+		{"new problem", []string{"a"}, []string{"a", "b"}, []string{"b"}},
+		{"everything is new", nil, []string{"b"}, []string{"b"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := addedProblems(tc.before, tc.after); strings.Join(got, "|") != strings.Join(tc.want, "|") {
+				t.Fatalf("want %v, got %v", tc.want, got)
+			}
+		})
 	}
 }
 
