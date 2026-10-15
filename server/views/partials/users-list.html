@@ -19,7 +19,7 @@
         <div class="user-cell">
           <strong>{{ user.username }}</strong>
           {% if not user.is_local %}
-            <span class="badge badge-info" title="Account comes from the directory (SSSD/Authentik). It is disabled on this machine only, through the sssd deny list.">Directory</span>
+            <span class="badge badge-info" title="Account comes from the SSSD directory">Directory</span>
           {% endif %}
           {% if computer.current_user == user.username %}
             <span class="badge badge-success">Active</span>

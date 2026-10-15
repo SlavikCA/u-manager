@@ -114,7 +114,7 @@ Send periodic heartbeat to report status and receive pending commands. **Should 
 | ip_address | string | No | Current IP address |
 | agent_version | string | No | Agent software version |
 | current_desktop_user | string | No | Username of currently logged-in desktop user (null if none) |
-| users | array | No | List of users with UID >= 1000 |
+| users | array | No | List of users with UID >= 1000 (accounts whose name starts with `service` are excluded) |
 
 **User Object:**
 
@@ -305,7 +305,9 @@ every 10 seconds:
     1. Gather system information:
        - Get current desktop user (check display manager or `who`)
        - Get list of users with UID >= 1000 from NSS (`getent passwd`), which
-         includes accounts from remote directories (SSSD/LDAP, e.g. Authentik)
+         includes accounts from remote directories (SSSD/LDAP, e.g. Authentik).
+         Leave out accounts whose name starts with `service`: those are the
+         machine's own, and they are not managed from the app
        - Local accounts: check lock status with `passwd -S`
        - Directory accounts: check the sssd deny list (see below)
        - Check login status for each user (who, w, or loginctl)
@@ -322,8 +324,8 @@ every 10 seconds:
 
 ```bash
 # Every account NSS knows about (files, sssd, ...) with UID >= 1000
-# (excluding nobody/nogroup)
-getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1":"$3":"$6":"$7}'
+# (excluding nobody/nogroup and the machine's own service accounts)
+getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && tolower($1) !~ /^service/ {print $1":"$3":"$6":"$7}'
 ```
 
 `getent passwd` without arguments goes through the NSS enumeration path, so an

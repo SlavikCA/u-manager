@@ -32,6 +32,16 @@ type UserInfo struct {
 	LoggedInAt int64  `json:"logged_in_at,omitempty"` // epoch seconds, 0 when not logged in
 }
 
+// serviceAccountPrefix identifies the machine's own service accounts. They are
+// not people, so the agent does not report them and does not act on commands
+// that name them. The match is on the leading part of the name and
+// case-insensitive, so service, service-backup and Service all qualify.
+const serviceAccountPrefix = "service"
+
+func isServiceAccount(username string) bool {
+	return strings.HasPrefix(strings.ToLower(username), serviceAccountPrefix)
+}
+
 // getUsers lists the accounts NSS knows about, so users from remote directories
 // (SSSD/LDAP, e.g. Authentik) show up next to local /etc/passwd accounts.
 //
@@ -53,7 +63,7 @@ func getUsers() []UserInfo {
 		reported[user.Username] = true
 	}
 	for username := range denied {
-		if reported[username] {
+		if reported[username] || isServiceAccount(username) {
 			continue
 		}
 		user, ok := resolveDeniedUser(username)
@@ -112,6 +122,9 @@ func buildUsers(entries []string, localAccounts map[string]int, denied map[strin
 		}
 
 		username := fields[0]
+		if isServiceAccount(username) {
+			continue
+		}
 		localUID, isLocal := localAccounts[username]
 		isLocal = isLocal && localUID == uid
 		isLocked := false
@@ -313,12 +326,19 @@ func parseLoginTime(fields []string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func getCurrentDesktopUser() string {
-	sessions := getGraphicalSessions()
-	if len(sessions) > 0 {
-		return sessions[0].username
+// desktopUser picks the desktop user from the graphical sessions, skipping the
+// service accounts the agent does not manage.
+func desktopUser(sessions []graphicalSession) string {
+	for _, session := range sessions {
+		if !isServiceAccount(session.username) {
+			return session.username
+		}
 	}
 	return ""
+}
+
+func getCurrentDesktopUser() string {
+	return desktopUser(getGraphicalSessions())
 }
 
 // getLocalIP returns the address the server should use to reach this host.

@@ -6,6 +6,12 @@ The agent reports every account NSS knows about (UID >= 1000, via
 `getent passwd`), so accounts from a remote directory such as Authentik over
 SSSD show up in the web UI next to local ones.
 
+The machine's own service accounts are left out: any name starting with
+`service` (`service`, `service-backup`, case-insensitive) is neither reported
+nor acted on, so such an account never shows up in the app and commands aimed at
+one are refused. The check covers both the report and the desktop user, so a
+service account logged in on the console is not shown as the active user either.
+
 Disabling and enabling an account depends on where it lives:
 
 - **Local accounts** (`/etc/passwd`): `usermod -L` / `usermod -U`.

@@ -107,6 +107,56 @@ func TestGetUsersResolvesDeniedAccountsMissingFromEnumeration(t *testing.T) {
 	}
 }
 
+// Service accounts are the machine's own, not people: names starting with
+// "service" are left out of the report, whatever source they come from.
+func TestBuildUsersSkipsServiceAccounts(t *testing.T) {
+	users := buildUsers(
+		[]string{localJane, "service:x:1003:1003:Service:/home/service:/bin/sh", "service-backup:*:2011:2011::/home/service-backup:/bin/sh", dirDana},
+		map[string]int{"jane": 1000, "service": 1003},
+		map[string]bool{"service-backup": true},
+		map[string]time.Time{"service": time.Now()},
+	)
+
+	if len(users) != 2 {
+		t.Fatalf("want jane and dana only, got %d entries: %+v", len(users), users)
+	}
+	for _, user := range users {
+		if isServiceAccount(user.Username) {
+			t.Fatalf("%s should not be reported: %+v", user.Username, user)
+		}
+	}
+}
+
+func TestIsServiceAccount(t *testing.T) {
+	for _, name := range []string{"service", "service5", "Service", "service-backup"} {
+		if !isServiceAccount(name) {
+			t.Errorf("%q should be ignored", name)
+		}
+	}
+	for _, name := range []string{"slavik", "reservice", "user-service", "serv"} {
+		if isServiceAccount(name) {
+			t.Errorf("%q should be reported", name)
+		}
+	}
+}
+
+// The desktop user shown in the app is the first session that is not a service
+// account: a service account sitting on the console is not reported as the user.
+func TestDesktopUserSkipsServiceAccounts(t *testing.T) {
+	sessions := []graphicalSession{
+		{username: "service", display: ":0"},
+		{username: "jane", display: ":1"},
+	}
+	if got := desktopUser(sessions); got != "jane" {
+		t.Errorf("desktopUser = %q, want jane", got)
+	}
+
+	onlyService := []graphicalSession{{username: "service-backup", display: ":0"}}
+	if got := desktopUser(onlyService); got != "" {
+		t.Errorf("desktopUser = %q, want empty when only service accounts are logged in", got)
+	}
+}
+
 func findUser(users []UserInfo, username string) (UserInfo, bool) {
 	for _, user := range users {
 		if user.Username == username {

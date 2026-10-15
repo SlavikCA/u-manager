@@ -74,3 +74,40 @@ func TestRunLogoutUserUnknownUser(t *testing.T) {
 		t.Errorf("error = %q, want it to name the user and logind's reason", result.Error)
 	}
 }
+
+// Commands aimed at a service account are refused instead of run, and nothing
+// on the machine is touched.
+func TestExecuteRefusesServiceAccounts(t *testing.T) {
+	calls := stubRunCommand(t, "", nil)
+
+	for _, cmd := range []Command{
+		{ID: 1, Type: "disable_user", TargetUser: "service"},
+		{ID: 2, Type: "enable_user", TargetUser: "service-backup"},
+		{ID: 3, Type: "logout_user", TargetUser: "Service"},
+	} {
+		result := execute(cmd)
+
+		if result.Success {
+			t.Errorf("%s for %s should be refused, got %+v", cmd.Type, cmd.TargetUser, result)
+		}
+		if !strings.Contains(result.Error, cmd.TargetUser) {
+			t.Errorf("error = %q, want it to name %s", result.Error, cmd.TargetUser)
+		}
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("no command should have run, got %v", *calls)
+	}
+}
+
+func TestExecuteRunsCommandsForManagedUsers(t *testing.T) {
+	calls := stubRunCommand(t, "", nil)
+
+	result := execute(Command{ID: 4, Type: "logout_user", TargetUser: "alice"})
+
+	if !result.Success {
+		t.Fatalf("want success, got %+v", result)
+	}
+	if len(*calls) != 1 || (*calls)[0] != "loginctl terminate-user alice" {
+		t.Fatalf("commands = %v, want [loginctl terminate-user alice]", *calls)
+	}
+}

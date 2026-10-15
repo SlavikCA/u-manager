@@ -18,28 +18,40 @@ type CommandResult struct {
 }
 
 func executeCommand(cfg *Config, cmd Command) {
-	var result CommandResult
-
-	switch cmd.Type {
-	case "disable_user":
-		result = runDisableUser(cmd.TargetUser)
-	case "enable_user":
-		result = runEnableUser(cmd.TargetUser)
-	case "logout_user":
-		result = runLogoutUser(cmd.TargetUser)
-	case "restart_dm":
-		result = runRestartDM()
-	default:
-		result = CommandResult{
-			Success: false,
-			Error:   fmt.Sprintf("unknown command type: %s", cmd.Type),
-		}
-	}
-
+	result := execute(cmd)
 	result.ComputerID = cfg.ComputerID
 	log.Printf("Command %d (%s %s): success=%v", cmd.ID, cmd.Type, cmd.TargetUser, result.Success)
 
 	reportResult(cfg, cmd.ID, result)
+}
+
+// execute runs one command from the server. A command that names an account the
+// agent does not manage is refused: such an account is not reported either, so
+// the only way one arrives is a row left over on the server, or a hand-made
+// request.
+func execute(cmd Command) CommandResult {
+	if isServiceAccount(cmd.TargetUser) {
+		return CommandResult{
+			Success: false,
+			Error:   fmt.Sprintf("user %s is not managed by the agent (service accounts are ignored)", cmd.TargetUser),
+		}
+	}
+
+	switch cmd.Type {
+	case "disable_user":
+		return runDisableUser(cmd.TargetUser)
+	case "enable_user":
+		return runEnableUser(cmd.TargetUser)
+	case "logout_user":
+		return runLogoutUser(cmd.TargetUser)
+	case "restart_dm":
+		return runRestartDM()
+	default:
+		return CommandResult{
+			Success: false,
+			Error:   fmt.Sprintf("unknown command type: %s", cmd.Type),
+		}
+	}
 }
 
 func runDisableUser(username string) CommandResult {

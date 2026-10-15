@@ -140,7 +140,8 @@ The agent should:
 2. Send heartbeats every 10 seconds with:
    - Current desktop user
    - List of users (UID >= 1000) from `getent passwd`, so directory accounts
-     (SSSD/LDAP, e.g. Authentik) are included
+     (SSSD/LDAP, e.g. Authentik) are included. Accounts whose name starts with
+     `service` are never reported
    - User lock status (`passwd -S` for local accounts, the sssd deny list for
      directory accounts)
 3. Execute commands received from the server
