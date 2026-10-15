@@ -87,7 +87,7 @@ sudo lum-agent --server-url http://SERVER:3000 --token TOKEN --screenshots --scr
 ## Publishing a release
 
 ```
-git tag agent-v2.0.2
+git tag agent-v2.2.0
 git push --tags
 ```
 

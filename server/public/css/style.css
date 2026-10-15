@@ -359,6 +359,19 @@ a:hover {
   color: #166534;
 }
 
+/* Login state on one line, when it happened on the next: on a narrow screen
+   the two do not fit side by side, and the time is worth a line of its own. */
+.status-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+}
+
+.status-when {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
 /* Badges */
 .badge {
   display: inline-flex;
@@ -382,6 +395,15 @@ a:hover {
 .badge-info {
   background-color: #dbeafe;
   color: #1e40af;
+}
+
+/* The name and its labels (Directory, Active) stack, so a narrow screen does
+   not squeeze them all onto one line. */
+.user-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
 }
 
 /* User Badge */

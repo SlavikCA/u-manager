@@ -16,13 +16,15 @@
     {% for user in computer.users %}
     <tr class="{% if user.is_locked %}row-locked{% endif %}">
       <td>
-        <strong>{{ user.username }}</strong>
-        {% if not user.is_local %}
-          <span class="badge badge-info" title="Account comes from the directory (SSSD/Authentik). It is disabled on this machine only, through the sssd deny list.">Directory</span>
-        {% endif %}
-        {% if computer.current_user == user.username %}
-          <span class="badge badge-success">Active</span>
-        {% endif %}
+        <div class="user-cell">
+          <strong>{{ user.username }}</strong>
+          {% if not user.is_local %}
+            <span class="badge badge-info" title="Account comes from the directory (SSSD/Authentik). It is disabled on this machine only, through the sssd deny list.">Directory</span>
+          {% endif %}
+          {% if computer.current_user == user.username %}
+            <span class="badge badge-success">Active</span>
+          {% endif %}
+        </div>
       </td>
       <td>
         {% if computer.status == 'online' %}
@@ -71,8 +73,9 @@
             {% if user.is_local %}🔒 Locked{% else %}🔒 Denied{% endif %}
           </span>
         {% elif user.is_logged_in or computer.current_user == user.username %}
-          <span class="status-badge status-online" title="Logged in {{ user.last_login_at | timeAgo }}">
-            ● Logged in{% if user.last_login_at %} · {{ user.last_login_at | timeAgo }}{% endif %}
+          <span class="status-badge status-online status-stacked" title="Logged in {{ user.last_login_at | timeAgo }}">
+            <span>● Logged in</span>
+            {% if user.last_login_at %}<span class="status-when">{{ user.last_login_at | timeAgo }}</span>{% endif %}
           </span>
         {% else %}
           <span class="status-badge status-offline">
