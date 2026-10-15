@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"sort"
@@ -320,24 +321,97 @@ func getCurrentDesktopUser() string {
 	return ""
 }
 
-func getLocalIP() string {
+// getLocalIP returns the address the server should use to reach this host.
+//
+// The route towards the server decides: connecting a UDP socket sends no
+// packets, but makes the kernel pick the source address it would use, which is
+// by definition an address the server can reach. Merely scanning interfaces
+// instead reports addresses the host happens to own, e.g. IPv4 link-local
+// autoconfiguration (169.254.0.0/16) on a NIC that never got a DHCP lease, or a
+// docker bridge. The scan is the fallback for a server that is not routable.
+func getLocalIP(serverURL string) string {
+	if ip := routeSourceIP(serverURL); ip != "" {
+		return ip
+	}
+	return scanIPv4()
+}
+
+// routeSourceIP returns the local address of the route to the server.
+func routeSourceIP(serverURL string) string {
+	u, err := url.Parse(serverURL)
+	if err != nil || u.Hostname() == "" {
+		return ""
+	}
+
+	conn, err := net.Dial("udp", net.JoinHostPort(u.Hostname(), "9"))
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+
+	addr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return ""
+	}
+	ip := usableIPv4(addr.IP)
+	if ip == nil {
+		return ""
+	}
+	return ip.String()
+}
+
+// scanIPv4 is the fallback for a server that cannot be reached: the first
+// usable address on a physical interface, then on a container/VM interface
+// (reachable only through a bridge or tunnel, but better than nothing).
+func scanIPv4() string {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return ""
 	}
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
-			continue
-		}
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
+	for _, virtual := range []bool{false, true} {
+		for _, iface := range ifaces {
+			if isVirtualInterface(iface.Name) != virtual {
+				continue
+			}
+			if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+				continue
+			}
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, addr := range addrs {
+				ipnet, ok := addr.(*net.IPNet)
+				if !ok {
+					continue
+				}
+				if ip := usableIPv4(ipnet.IP); ip != nil {
+					return ip.String()
+				}
 			}
 		}
 	}
 	return ""
+}
+
+// usableIPv4 rejects addresses that do not identify this host to the server:
+// IPv6 entries, loopback, and link-local autoconfiguration (169.254.0.0/16 on
+// a NIC whose DHCP lease failed).
+func usableIPv4(ip net.IP) net.IP {
+	ip4 := ip.To4()
+	if ip4 == nil || ip4.IsLoopback() || ip4.IsLinkLocalUnicast() {
+		return nil
+	}
+	return ip4
+}
+
+// isVirtualInterface reports whether the interface belongs to a container or
+// virtualization stack; its addresses do not identify the host on the network.
+func isVirtualInterface(name string) bool {
+	for _, prefix := range []string{"docker", "br-", "veth", "virbr", "vnet", "tun", "tap", "wg"} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }

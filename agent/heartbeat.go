@@ -52,7 +52,7 @@ func sendHeartbeat(cfg *Config) {
 	req := HeartbeatRequest{
 		ComputerID:         cfg.ComputerID,
 		Hostname:           hostname,
-		IPAddress:          getLocalIP(),
+		IPAddress:          getLocalIP(cfg.ServerURL),
 		AgentVersion:       agentVersion,
 		CurrentDesktopUser: getCurrentDesktopUser(),
 		Users:              getUsers(),

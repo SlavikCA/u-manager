@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os/exec"
 	"strings"
 	"testing"
@@ -72,6 +73,44 @@ func TestGetLoggedInUsersLive(t *testing.T) {
 		d := time.Since(login)
 		if d < -time.Hour || d > 400*24*time.Hour {
 			t.Errorf("user %s login time %v is implausible", user, login)
+		}
+	}
+}
+
+func TestUsableIPv4(t *testing.T) {
+	cases := []struct {
+		addr string
+		want bool
+	}{
+		{"192.168.50.201", true},
+		{"10.0.0.5", true},
+		{"172.17.0.1", true}, // docker bridge: rejected by interface name, not here
+		{"169.254.36.15", false},
+		{"127.0.0.1", false},
+		{"::1", false},
+		{"fe80::befc:e7ff:fe3c:e4f6", false},
+	}
+	for _, c := range cases {
+		if got := usableIPv4(net.ParseIP(c.addr)) != nil; got != c.want {
+			t.Errorf("usableIPv4(%s) usable = %v, want %v", c.addr, got, c.want)
+		}
+	}
+}
+
+func TestIsVirtualInterface(t *testing.T) {
+	cases := map[string]bool{
+		"enp12s0":         false,
+		"eno1":            false,
+		"vlan50":          false,
+		"docker0":         true,
+		"br-5ec887c0af2f": true,
+		"veth99ddb90":     true,
+		"virbr0":          true,
+		"wg0":             true,
+	}
+	for name, want := range cases {
+		if got := isVirtualInterface(name); got != want {
+			t.Errorf("isVirtualInterface(%s) = %v, want %v", name, got, want)
 		}
 	}
 }

@@ -37,7 +37,7 @@ func register(serverURL, token string, screenshots bool, screenshotMethod string
 	reqBody := RegisterRequest{
 		Token:        token,
 		Hostname:     hostname,
-		IPAddress:    getLocalIP(),
+		IPAddress:    getLocalIP(serverURL),
 		AgentVersion: agentVersion,
 	}
 
