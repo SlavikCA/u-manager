@@ -261,7 +261,8 @@ sssctl config-check && systemctl restart sssd
 
 ### logout_user
 
-Force logout a user (terminate all their sessions).
+Force logout a user: terminate **all** of that user's sessions and leave every
+other account's sessions running.
 
 ```json
 {
@@ -273,8 +274,16 @@ Force logout a user (terminate all their sessions).
 
 **Recommended Linux command:**
 ```bash
-pkill -KILL -u <username>
+loginctl terminate-user <username>
 ```
+
+logind terminates the user's sessions, whatever they are (the desktop session on
+the console, X11 or Wayland, RDP, ssh), and deallocates them, so the display
+manager or the remote stack sees the session end. A signal to every process of
+the user's uid (`pkill -KILL -u username`) is not equivalent: it also reaches
+processes outside any session and can leave a session allocated. A user who is
+not logged in has no session to terminate; logind reports that as "not logged in
+or lingering", which is not an error.
 
 ---
 
@@ -484,7 +493,7 @@ func executeCommand(config *Config, cmd Command) {
     case "enable_user":
         err = exec.Command("usermod", "-U", cmd.TargetUser).Run()
     case "logout_user":
-        err = exec.Command("pkill", "-KILL", "-u", cmd.TargetUser).Run()
+        err = exec.Command("loginctl", "terminate-user", cmd.TargetUser).Run()
     }
     
     // Report result

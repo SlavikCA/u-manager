@@ -29,8 +29,9 @@ var (
 	denySnippetName = "99-linux-user-manager.conf"
 )
 
-// runCommand is indirected so tests can stub the externals the deny list
-// depends on. LC_ALL is forced to C so parsed sssctl output is not localized.
+// runCommand is indirected so tests can stub the external tools the agent
+// calls. LC_ALL is forced to C so output that is matched against is never
+// localized.
 var runCommand = defaultRunCommand
 
 // lookPath is indirected for the same reason.

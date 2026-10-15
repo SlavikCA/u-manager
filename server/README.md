@@ -152,7 +152,7 @@ The agent should:
 3. Use the action buttons:
    - **Disable**: Prevent the user from logging in
    - **Enable**: Allow the user to log in again
-   - **Logout**: Force terminate all user sessions
+   - **Logout**: End that user's sessions (console, RDP, ssh); other users keep working
 
 #### Local and directory accounts
 

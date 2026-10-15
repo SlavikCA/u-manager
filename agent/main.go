@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-const agentVersion = "2.0.2"
+const agentVersion = "2.1.0"
 
 func main() {
 	serverURL := flag.String("server-url", "", "Server URL for registration (e.g. http://192.168.0.230:3000)")

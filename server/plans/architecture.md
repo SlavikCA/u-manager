@@ -226,7 +226,7 @@ sequenceDiagram
 |------|-------------|---------------|
 | `disable_user` | Block logins | Local account: `usermod -L username`. Directory account (SSSD/LDAP): `simple_deny_users` in `/etc/sssd/conf.d/99-linux-user-manager.conf` + `systemctl restart sssd` |
 | `enable_user` | Allow logins | Local account: `usermod -U username`. Directory account: drop the entry from that snippet |
-| `logout_user` | Force logout user | `pkill -KILL -u username` |
+| `logout_user` | Force logout user | `loginctl terminate-user username` |
 
 Directory accounts (reported with `is_local: false`) have no entry in
 `/etc/passwd`, and `usermod` only edits that file, so a denied account is denied

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strings"
 )
 
 type CommandResult struct {
@@ -125,11 +126,21 @@ func allowDirectoryLogins(username string) CommandResult {
 	}
 }
 
+// runLogoutUser ends every session the user has on this machine.
+//
+// This goes through logind rather than signalling every process of the user's
+// uid (pkill -KILL -u): terminate-user is scoped to the user's sessions, so it
+// ends exactly the sessions loginctl list-sessions reports - the desktop
+// session on the console (X11 or Wayland), RDP, ssh - and deallocates them, so
+// the display manager or the remote stack sees the session end. Processes of
+// that user running outside a session (a lingering user service, for instance)
+// keep running; kill-user is the operation that reaches everything.
 func runLogoutUser(username string) CommandResult {
-	out, err := exec.Command("pkill", "-KILL", "-u", username).CombinedOutput()
+	out, err := runCommand("loginctl", "terminate-user", username)
 	if err != nil {
-		// pkill returns exit code 1 if no processes found, which is fine
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		// logind answers "is not logged in or lingering" when the user has no
+		// session to terminate, which is not a failure of the request.
+		if strings.Contains(string(out), "not logged in") {
 			return CommandResult{
 				Success: true,
 				Message: fmt.Sprintf("User %s had no active sessions", username),
@@ -137,7 +148,7 @@ func runLogoutUser(username string) CommandResult {
 		}
 		return CommandResult{
 			Success: false,
-			Error:   fmt.Sprintf("failed to logout user %s: %s (%v)", username, string(out), err),
+			Error:   fmt.Sprintf("failed to logout user %s: %s (%v)", username, strings.TrimSpace(string(out)), err),
 		}
 	}
 	return CommandResult{

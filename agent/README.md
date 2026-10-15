@@ -37,6 +37,31 @@ The checks use `sssctl` from the `sssd-tools` package. Without it the agent stil
 writes the snippet, but cannot validate it, and reports the disable as unverified;
 install `sssd-tools` on the managed machines.
 
+## Logout
+
+**Logout** in the user list runs `loginctl terminate-user <username>`: logind
+ends that user's sessions and deallocates them. Sessions are the unit here, not
+the user's processes, which is what makes it safe on a shared machine:
+
+- It ends exactly what `loginctl list-sessions` reports for that user - the
+  desktop session on the console (X11 or Wayland), RDP, ssh - so every screen
+  and connection of *that* user is logged out in one go.
+- The sessions are deallocated through logind, so the display manager or the
+  remote stack notices the session ended. A signal to the user's processes
+  (`pkill -KILL -u`) can leave a session allocated, e.g. when its leader is not
+  one of the user's own processes.
+- Processes of that user that run outside a session (a lingering user service,
+  for instance) are left alone. `loginctl kill-user` is the operation that
+  reaches them, and that is not what a logout should do.
+
+Note that logind keys sessions by uid, so two accounts sharing one uid are one
+user to it. `loginctl list-sessions` shows the uid of every session;
+`getent passwd | awk -F: '$3>=1000 && $3<65534 {print $3}' | sort | uniq -d`
+prints the uids that more than one account uses.
+
+A user who is not logged in has no session to terminate; the agent reports that
+as "no active sessions" instead of an error.
+
 ## Screenshot capture
 
 Screenshot capture is opt-in at registration:
