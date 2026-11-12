@@ -17,12 +17,88 @@ type CommandResult struct {
 	Error      string `json:"error,omitempty"`
 }
 
-func executeCommand(cfg *Config, cmd Command) {
-	result := execute(cmd)
-	result.ComputerID = cfg.ComputerID
-	log.Printf("Command %d (%s %s): success=%v", cmd.ID, cmd.Type, cmd.TargetUser, result.Success)
+// executeBatch runs the commands of one heartbeat. Commands that change this
+// machine's sssd deny list are collected first and applied with a single write
+// and a single sssd restart: every restart counts against the unit's start limit
+// (Debian and Ubuntu ship sssd.service with 5 starts per 50s), so disabling
+// several directory accounts in a row used to leave sssd failed with
+// start-limit-hit and every later change rejected with it. Commands that touch
+// nothing shared run one by one as before.
+func executeBatch(cmds []Command) []CommandResult {
+	results := make([]CommandResult, len(cmds))
 
-	reportResult(cfg, cmd.ID, result)
+	type denyChange struct {
+		index    int
+		username string
+		deny     bool
+	}
+
+	// The list on disk is the starting point, so a hand-edited snippet is kept
+	// and only the batch's own changes are applied.
+	want := deniedUsernames()
+	changed := false
+	handled := make([]bool, len(cmds))
+	var changes []denyChange
+
+	for i, cmd := range cmds {
+		username, deny, ok := denyListCommand(cmd)
+		if !ok {
+			continue
+		}
+
+		handled[i] = true
+		changes = append(changes, denyChange{index: i, username: username, deny: deny})
+		if deny && !want[username] {
+			want[username] = true
+			changed = true
+		}
+		if !deny && want[username] {
+			delete(want, username)
+			changed = true
+		}
+	}
+
+	// A batch that disables and enables the same account again leaves the list
+	// as it was; rewriting it would only restart sssd for nothing.
+	var applyErr error
+	if changed {
+		applyErr = applyDenyList(want)
+	}
+
+	// The deny list goes in before the rest of the batch, so a user who is
+	// disabled and logged out by the same heartbeat does not get a session in
+	// between.
+	for i, cmd := range cmds {
+		if !handled[i] {
+			results[i] = execute(cmd)
+		}
+	}
+
+	for _, change := range changes {
+		if change.deny {
+			results[change.index] = deniedResult(change.username, applyErr)
+		} else {
+			results[change.index] = allowedResult(change.username, applyErr)
+		}
+	}
+	return results
+}
+
+// denyListCommand reports the account and direction of a command that changes
+// the sssd deny list. Local accounts are locked with usermod and service accounts
+// are refused, so both are left to execute.
+func denyListCommand(cmd Command) (username string, deny bool, ok bool) {
+	if isServiceAccount(cmd.TargetUser) || isLocalUser(cmd.TargetUser) {
+		return "", false, false
+	}
+
+	switch cmd.Type {
+	case "disable_user":
+		return cmd.TargetUser, true, true
+	case "enable_user":
+		return cmd.TargetUser, false, true
+	}
+	return "", false, false
 }
 
 // execute runs one command from the server. A command that names an account the
@@ -94,15 +170,21 @@ func runEnableUser(username string) CommandResult {
 // by adding it to this machine's SSSD deny list: usermod only edits
 // /etc/passwd, so it cannot touch an account that lives in the directory.
 func denyDirectoryLogins(username string) CommandResult {
-	if err := denyDirectoryUser(username); err != nil {
+	return deniedResult(username, denyDirectoryUser(username))
+}
+
+// deniedResult reports the outcome of a deny list that has already been written
+// and applied. A written configuration is not proof that logins are refused, so
+// sssd is asked through PAM and its answer is surfaced when the account can
+// still log in.
+func deniedResult(username string, err error) CommandResult {
+	if err != nil {
 		return CommandResult{
 			Success: false,
 			Error:   fmt.Sprintf("failed to disable user %s: %v", username, err),
 		}
 	}
 
-	// A written configuration is not proof that logins are refused, so ask sssd
-	// through PAM and surface its answer when the account can still log in.
 	blocked, verified, output := loginsDenied(username)
 	if verified && !blocked {
 		return CommandResult{
@@ -125,7 +207,13 @@ func denyDirectoryLogins(username string) CommandResult {
 // machine's SSSD deny list. The deny list is used rather than NSS, so an account
 // the directory stopped returning can still be enabled again.
 func allowDirectoryLogins(username string) CommandResult {
-	if err := allowDirectoryUser(username); err != nil {
+	return allowedResult(username, allowDirectoryUser(username))
+}
+
+// allowedResult reports the outcome of a deny list that has already been written
+// and applied.
+func allowedResult(username string, err error) CommandResult {
+	if err != nil {
 		return CommandResult{
 			Success: false,
 			Error:   fmt.Sprintf("failed to enable user %s: %v", username, err),

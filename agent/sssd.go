@@ -375,12 +375,42 @@ func addedProblems(before, after []string) []string {
 
 // restartSSSD is the only way to apply configuration changes: SIGHUP just
 // reopens the log files.
+//
+// systemd refuses to start a unit once its start limit is exhausted and leaves it
+// failed with start-limit-hit; every later restart then fails the same way until
+// the failure counter is cleared. sssd.service ships StartLimitBurst=5 with
+// StartLimitIntervalSec=50s on Debian and Ubuntu, so the limit is reached by five
+// restarts in fifty seconds - a burst of disables, or one restart on top of a
+// daemon that was already flapping. That says nothing about the configuration the
+// agent wrote, and it also stops the rollback restart from running, so the
+// counter is cleared and the restart tried once more.
 func restartSSSD() error {
 	out, err := runCommand("systemctl", "restart", "sssd")
-	if err != nil {
+	if err == nil {
+		return nil
+	}
+	if !startLimitHit(out) {
 		return fmt.Errorf("failed to restart sssd: %s (%v)", strings.TrimSpace(string(out)), err)
 	}
+
+	if resetOut, resetErr := runCommand("systemctl", "reset-failed", "sssd"); resetErr != nil {
+		return fmt.Errorf("failed to restart sssd: %s (clearing the start limit failed: %s (%v))",
+			strings.TrimSpace(string(out)), strings.TrimSpace(string(resetOut)), resetErr)
+	}
+	if retryOut, retryErr := runCommand("systemctl", "restart", "sssd"); retryErr != nil {
+		return fmt.Errorf("failed to restart sssd: %s", strings.TrimSpace(string(retryOut)))
+	}
 	return nil
+}
+
+// startLimitHit reports whether systemd refused a start because the unit was
+// started too often in a short time: the reason `systemctl restart` prints, and
+// the failure result it records for the unit.
+func startLimitHit(out []byte) bool {
+	text := strings.ToLower(string(out))
+	return strings.Contains(text, "attempted too often") ||
+		strings.Contains(text, "start request repeated too quickly") ||
+		strings.Contains(text, "start-limit-hit")
 }
 
 // loginsDenied asks sssd through PAM whether the account may still log in.

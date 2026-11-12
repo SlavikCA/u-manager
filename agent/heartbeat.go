@@ -113,20 +113,28 @@ func sendHeartbeat(cfg *Config) {
 		return
 	}
 
-	newCommandsExecuted := 0
+	var pending []Command
 	for _, cmd := range hbResp.Commands {
 		if executedCommands[cmd.ID] {
 			log.Printf("Skipping already executed command %d (%s %s)", cmd.ID, cmd.Type, cmd.TargetUser)
 			continue
 		}
 		log.Printf("Received command: %s for user %s (id=%d)", cmd.Type, cmd.TargetUser, cmd.ID)
-		executeCommand(cfg, cmd)
-		executedCommands[cmd.ID] = true
-		newCommandsExecuted++
+		pending = append(pending, cmd)
 	}
 
-	if newCommandsExecuted > 0 {
-		log.Printf("Executed %d command(s), sending immediate heartbeat to update status", newCommandsExecuted)
+	if len(pending) > 0 {
+		// The whole response is executed as one batch: deny list changes share
+		// one sssd restart, which keeps a burst of disables clear of systemd's
+		// start limit.
+		for i, result := range executeBatch(pending) {
+			executedCommands[pending[i].ID] = true
+			result.ComputerID = cfg.ComputerID
+			log.Printf("Command %d (%s %s): success=%v", pending[i].ID, pending[i].Type, pending[i].TargetUser, result.Success)
+			reportResult(cfg, pending[i].ID, result)
+		}
+
+		log.Printf("Executed %d command(s), sending immediate heartbeat to update status", len(pending))
 		sendHeartbeat(cfg)
 	}
 }

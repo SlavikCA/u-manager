@@ -306,6 +306,122 @@ func TestApplyDenyList(t *testing.T) {
 	})
 }
 
+// systemd stops starting a unit that exceeded its start limit (sssd.service:
+// 5 starts in 50s) and reports start-limit-hit on every later start. That is not
+// a problem with the configuration, and it also blocks the rollback restart, so
+// the agent clears the failure counter and tries once more.
+func TestRestartSSSDRelievesTheStartLimit(t *testing.T) {
+	t.Cleanup(func() { runCommand = defaultRunCommand })
+
+	t.Run("clears the limit and retries", func(t *testing.T) {
+		var calls []string
+		starts := 0
+		runCommand = func(name string, args ...string) ([]byte, error) {
+			call := name + " " + strings.Join(args, " ")
+			calls = append(calls, call)
+			if call == "systemctl restart sssd" {
+				starts++
+				if starts == 1 {
+					return []byte("Job for sssd.service failed because start of the service was attempted too often. " +
+						"See \"systemctl status sssd.service\" and \"journalctl -xeu sssd.service\" for details.\n" +
+						"To force a start use \"systemctl reset-failed sssd.service\" followed by " +
+						"\"systemctl start sssd.service\" again.\n"), errors.New("exit status 1")
+				}
+			}
+			return nil, nil
+		}
+
+		if err := restartSSSD(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := []string{"systemctl restart sssd", "systemctl reset-failed sssd", "systemctl restart sssd"}
+		if strings.Join(calls, "\n") != strings.Join(want, "\n") {
+			t.Fatalf("want calls %v, got %v", want, calls)
+		}
+	})
+
+	t.Run("other failures are reported as they are", func(t *testing.T) {
+		var calls []string
+		runCommand = func(name string, args ...string) ([]byte, error) {
+			calls = append(calls, name+" "+strings.Join(args, " "))
+			return []byte("Job for sssd.service failed because the control process exited with error code.\n"), errors.New("exit status 1")
+		}
+
+		err := restartSSSD()
+		if err == nil || !strings.Contains(err.Error(), "control process exited") {
+			t.Fatalf("want systemd's reason, got %v", err)
+		}
+		if strings.Contains(strings.Join(calls, " "), "reset-failed") {
+			t.Fatalf("a start limit that was not hit must not be cleared, calls: %v", calls)
+		}
+	})
+}
+
+// A heartbeat can carry several disables at once. Each of them changes the same
+// sssd deny list, so they share one restart instead of one each: five restarts
+// in ten seconds make systemd reject the unit.
+func TestExecuteBatchSharesOneSSSDRestart(t *testing.T) {
+	conf := "[sssd]\ndomains = authentik\n\n[domain/authentik]\naccess_provider = simple\n"
+	newSSSDFixture(t, conf, nil)
+
+	var calls []string
+	runCommand = func(name string, args ...string) ([]byte, error) {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return nil, nil
+	}
+
+	results := executeBatch([]Command{
+		{ID: 1, Type: "disable_user", TargetUser: "alice"},
+		{ID: 2, Type: "disable_user", TargetUser: "bob"},
+		{ID: 3, Type: "disable_user", TargetUser: "carol"},
+	})
+
+	for i, result := range results {
+		if !result.Success {
+			t.Errorf("command %d failed: %+v", i+1, result)
+		}
+	}
+	assertSnippetDenies(t, "alice", "bob", "carol")
+
+	restarts := 0
+	for _, call := range calls {
+		if call == "systemctl restart sssd" {
+			restarts++
+		}
+	}
+	if restarts != 1 {
+		t.Fatalf("want one sssd restart for the batch, got %d (calls: %v)", restarts, calls)
+	}
+}
+
+// A batch whose deny list cannot be applied fails every deny-list command with
+// the same reason and leaves the snippet as it was.
+func TestExecuteBatchReportsAFailedApply(t *testing.T) {
+	conf := "[sssd]\ndomains = authentik\n\n[domain/authentik]\naccess_provider = simple\n"
+	newSSSDFixture(t, conf, map[string]string{
+		denySnippetName: "[domain/authentik]\nsimple_deny_users = carol\n",
+	})
+
+	runCommand = func(name string, args ...string) ([]byte, error) {
+		if name == "systemctl" {
+			return []byte("Job for sssd.service failed"), errors.New("exit status 1")
+		}
+		return nil, nil
+	}
+
+	results := executeBatch([]Command{
+		{ID: 1, Type: "disable_user", TargetUser: "alice"},
+		{ID: 2, Type: "disable_user", TargetUser: "bob"},
+	})
+
+	for i, result := range results {
+		if result.Success || !strings.Contains(result.Error, "failed to disable user") {
+			t.Errorf("command %d should have failed, got %+v", i+1, result)
+		}
+	}
+	assertSnippetDenies(t, "carol")
+}
+
 func assertSnippetDenies(t *testing.T, names ...string) {
 	t.Helper()
 
